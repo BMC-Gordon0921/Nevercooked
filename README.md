@@ -15,6 +15,8 @@ python main.py
 
 Windows 上装好依赖后直接双击 `启动游戏.cmd` 即可。
 
+> HTTPS 连不上 GitHub 的内网/校园网环境，把地址换成 SSH：`git clone git@github.com:BMC-Gordon0921/Nevercooked.git`（先在 GitHub 添加本机公钥）。
+
 ## 运行
 
 双击 `启动游戏.cmd`，或者：
