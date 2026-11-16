@@ -31,11 +31,37 @@ class TitleScene:
         self.levels = list(difficulty.ORDER)
         start = getattr(app, "difficulty", difficulty.DEFAULT)
         self.index = self.levels.index(start) if start in self.levels else len(self.levels) // 2
+        self.codes = difficulty.codes()
+        self.prompt_open = False
+        self.buffer = ""
+        self.message = ""
+        self.message_ok = True
+        self.message_t = 0.0
         audio.play_bgm("bgm_canteen_loop", 0.20)
 
     # -- input ----------------------------------------------------------
     def update(self, dt, intent):
         self.t += dt
+        self.message_t = max(0.0, self.message_t - dt)
+        if self.prompt_open:
+            if intent.menu:
+                self.prompt_open = False
+                self.buffer = ""
+                return
+            if intent.backspace:
+                self.buffer = self.buffer[:-intent.backspace]
+                return
+            if intent.text:
+                self.buffer = (self.buffer + intent.text)[:24]
+                return
+            if intent.confirm:
+                self._submit_code()
+            return
+        if intent.code:
+            self.prompt_open = True
+            self.buffer = ""
+            self.message = ""
+            return
         if intent.nav:
             self.index = (self.index + intent.nav) % len(self.levels)
         if intent.pick and 1 <= intent.pick <= len(self.levels):
@@ -44,12 +70,35 @@ class TitleScene:
         if intent.confirm:
             if not profile.is_unlocked(level, self.data):
                 audio.play("sfx_fail", 0.40)
+                self.message = "%s 还没解锁：先打个 S，或者按 C 输入兑换码" % difficulty.data(level)["name"]
+                self.message_ok = False
+                self.message_t = 3.0
                 return
             self.app.difficulty = level
             from scenes.game import GameScene
             self.app.switch(GameScene(self.app, level))
         elif intent.menu:
             self.app.running = False
+
+    def _submit_code(self):
+        """Redeem one code. Wrong input keeps the prompt open so retyping is cheap."""
+        level = difficulty.level_for_code(self.buffer)
+        self.prompt_open = False
+        self.buffer = ""
+        if level is None:
+            audio.play("sfx_fail", 0.45)
+            self.message = "兑换码无效，再试一次（按 C 重新输入）"
+            self.message_ok = False
+            self.message_t = 2.6
+            return
+        self.data, opened = profile.unlock(level, self.data)
+        audio.play("sfx_bell", 0.80)
+        name = difficulty.data(level)["name"]
+        self.message = ("%s 已解锁！按 Enter 开锅" % name) if opened else ("%s 本来就是开着的" % name)
+        self.message_ok = True
+        self.message_t = 3.2
+        if level in self.levels:
+            self.index = self.levels.index(level)
 
     # -- painting -------------------------------------------------------
     def _sky(self, surface):
@@ -96,7 +145,7 @@ class TitleScene:
                                 shadow=(255, 255, 255))
             sub = "结算 x%.2f · 耐心 x%.2f" % (info["score"], info["patience"])
             if not open_level:
-                sub = "高难度：任意模式评 S 解锁"
+                sub = "评 S 解锁，或按 C 兑换"
             textmod.shadow_text(surface, sub, (chip.centerx, chip.y + 50), size=12,
                                 color=COL_STEEL if open_level else COL_FLAME,
                                 anchor="center", shadow=(255, 255, 255))
@@ -149,7 +198,41 @@ class TitleScene:
                                 (cx, config.SCREEN_H - 96), size=13,
                                 color=config.color("tomato"), anchor="center",
                                 shadow=(255, 255, 255))
+        if self.message_t > 0.0:
+            textmod.shadow_text(surface, self.message, (cx, 566), size=16,
+                                color=COL_TEAL if self.message_ok else COL_FLAME,
+                                bold=True, anchor="center", shadow=(255, 255, 255))
+        if self.prompt_open:
+            self._prompt(surface, cx)
         textmod.shadow_text(surface,
-                            "← → 选难度     WASD 移动   右键/Shift 冲刺   F 交互   Q 抛出",
+                            "← → 选难度     WASD 移动   右键/Shift 冲刺   F 交互   Q 抛出     C 兑换码",
                             (cx, config.SCREEN_H - 40), size=15, color=COL_INK,
                             anchor="center", shadow=COL_SAND)
+
+    def _prompt(self, surface, cx):
+        """Code entry: a small card over a dimmed title, so the picker stays visible."""
+        veil = pygame.Surface((config.SCREEN_W, config.SCREEN_H), pygame.SRCALPHA)
+        veil.fill((12, 18, 28, 160))
+        surface.blit(veil, (0, 0))
+        card = pygame.Rect(0, 0, 520, 170)
+        card.center = (cx, 350)
+        pygame.draw.rect(surface, COL_CREAM, card, border_radius=12)
+        pygame.draw.rect(surface, COL_CLAY, card, 2, border_radius=12)
+        textmod.shadow_text(surface, "输入兑换码", (cx, card.y + 28), size=22,
+                            color=COL_INK, bold=True, anchor="center",
+                            shadow=(255, 255, 255))
+        field = pygame.Rect(card.x + 40, card.y + 50, card.w - 80, 48)
+        pygame.draw.rect(surface, (255, 255, 255), field, border_radius=8)
+        pygame.draw.rect(surface, COL_TEAL if self.buffer else COL_CLAY, field,
+                         2, border_radius=8)
+        shown = " ".join(self.buffer)
+        if not shown:
+            shown = "· · · · · ·"
+        elif int(self.t * 2.2) % 2 == 0:
+            shown += " ｜"
+        textmod.shadow_text(surface, shown, field.center, size=24,
+                            color=COL_INK if self.buffer else COL_STEEL,
+                            bold=True, anchor="center", shadow=COL_SAND)
+        textmod.shadow_text(surface, "Enter 确认   ·   Esc 取消   ·   退格键删除",
+                            (cx, card.bottom - 26), size=14, color=COL_STEEL,
+                            anchor="center", shadow=(255, 255, 255))

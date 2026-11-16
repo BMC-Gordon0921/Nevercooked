@@ -5,6 +5,10 @@
     "hard"
   ],
   "default": "normal",
+  "codes": {
+    "XINGGANG": "hard",
+    "NEVERCOOKED": "hard"
+  },
   "levels": {
     "easy": {
       "name": "轻松",

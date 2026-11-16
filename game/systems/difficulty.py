@@ -22,6 +22,9 @@ ORDER = list(_DATA["order"])
 DEFAULT = _DATA.get("default", "normal")
 LEVELS = _DATA["levels"]
 
+CODES = {str(k).strip().upper(): str(v)
+         for k, v in (_DATA.get("codes") or {}).items() if str(k).strip()}
+
 ACTIVE = DEFAULT
 
 
@@ -51,3 +54,13 @@ def spawn_scale(level=None):
 
 def score_scale(level=None):
     return float(data(level)["score"])
+
+
+def codes():
+    """Redemption codes defined in difficulty.json, upper-cased keys."""
+    return dict(CODES)
+
+
+def level_for_code(text):
+    """Which level a redemption code opens, or None when it is not a code."""
+    return CODES.get(str(text or "").strip().upper())

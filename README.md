@@ -39,6 +39,7 @@ python main.py
 | Q | 把手上东西朝面向抛出去（1.5 格，扔掉或隔空甩进设备） |
 | 空格 | 跳过后面的新手引导卡片 |
 | H | 显示 / 隐藏 新手卡 + 每单的路径引导 |
+| C | 标题页打开兑换码输入框（直接解锁挑战模式） |
 | ← → / 1 2 3 | 标题页选难度（高难度需先解锁） |
 | Esc | 暂停 / 回标题 |
 | Enter | 标题开始、结算再来一局（沿用当前难度） |
@@ -85,6 +86,15 @@ python main.py
 辅助开关就是 `difficulty.json` 里的 `assists`：`aim` / `reason` / `swap` / `mouse` / `tutorial` / `guide` / `dots`，按难度逐个关。
 
 **挑战模式解锁**：在轻松或标准难度打出 S 评级（★ ≥ 420）后自动开放；结果页会提示，档案存在仓库根目录的 `profile.json`（记录各难度最佳星数、总局数、已解锁难度）。
+
+**兑换码**：标题页按 `C` 打开输入框，输入下面任一兑换码回车，直接解锁挑战模式（不区分大小写；输错会提示重试，Esc 取消）：
+
+| 兑换码 | 效果 |
+| --- | --- |
+| `XINGGANG` | 解锁挑战模式 |
+| `NEVERCOOKED` | 解锁挑战模式 |
+
+兑换码配在 `data/difficulty.json` 的 `codes` 里（键 = 兑换码，值 = 要解锁的难度 id），增删随你；兑换结果同样写进 `profile.json`，解一次永久有效。
 
 ### 地图自定义
 
@@ -141,6 +151,7 @@ python tests/flow.py        # 真交互跑完一道炒饭并出餐
 python tests/throw.py       # 抛出：吸附进设备 / 被拒落地 / 捡回 / 校验
 python tests/map.py         # 地图解析、坏图报错、内外一致性
 python tests/audio.py       # 每个被引用的音效都有文件、设备音效对位、完成提示只响一次
+python tests/code.py        # 兑换码：文字输入/退格、解锁挑战、错误码、Esc 取消
 python tests/items_probe.py # 物品生命周期，leak 0
 python tests/full_round.py  # 随机输入跑满 180 秒后进结算
 python tests/bot.py         # 脚本玩家跑 180 秒，量吞吐（回归基线）

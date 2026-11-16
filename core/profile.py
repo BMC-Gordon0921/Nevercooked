@@ -57,6 +57,22 @@ def is_unlocked(level, data=None):
     return level in unlocked(data)
 
 
+def unlock(level, data=None):
+    """Open a level outright (redemption code). Returns (data, newly_opened).
+
+    Same file, same ordering rules as record(): the point is that a code and an
+    S-grade lead to exactly one unlocked state, not two.
+    """
+    data = data or load()
+    if level in data["unlocked"]:
+        return data, None
+    data["unlocked"].append(level)
+    order = ["easy", "normal", "hard"]
+    data["unlocked"] = [name for name in order if name in data["unlocked"]]
+    save(data)
+    return data, level
+
+
 def best(level, data=None):
     return int((data or load())["best"].get(level, 0))
 

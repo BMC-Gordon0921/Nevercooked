@@ -11,7 +11,8 @@ _UP = (pygame.K_w, pygame.K_UP)
 
 class Intent:
     __slots__ = ("mx", "my", "sprint", "interact", "throw", "menu", "confirm",
-                 "click_pos", "nav", "pick", "skip", "help")
+                 "click_pos", "nav", "pick", "skip", "help",
+                 "text", "backspace", "code")
 
     def __init__(self):
         self.mx = 0
@@ -26,6 +27,9 @@ class Intent:
         self.pick = 0       # 1..9: numbered menu choice
         self.skip = False   # space: dismiss the tutorial prompt
         self.help = False   # H: toggle tutorial / guide
+        self.text = ""       # printable characters typed this frame (code entry)
+        self.backspace = 0   # backspaces this frame
+        self.code = False    # C: open the redemption-code prompt
 
     def clear_edges(self):
         self.interact = False
@@ -37,6 +41,9 @@ class Intent:
         self.pick = 0
         self.skip = False
         self.help = False
+        self.text = ""
+        self.backspace = 0
+        self.code = False
 
 
 def read(events):
@@ -61,6 +68,16 @@ def read(events):
 
     for event in events:
         if event.type == pygame.KEYDOWN:
+            # Text is collected for every key, independently of the action map:
+            # a code like NEVERCOOKED must be typable even though C also opens
+            # the prompt and F/Q/WASD are bound in game.
+            ch = event.unicode
+            if ch and ch.isprintable() and ch.strip():
+                intent.text += ch
+            if event.key == pygame.K_BACKSPACE:
+                intent.backspace += 1
+            elif event.key == pygame.K_c:
+                intent.code = True
             if event.key == pygame.K_f:
                 intent.interact = True
             elif event.key == pygame.K_q:
