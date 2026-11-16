@@ -1,0 +1,18 @@
+{
+  "dishes": [
+    { "id": "fried_rice", "name": "星尘蛋炒饭", "price": 18, "patience": 60, "weight": 3, "hint": "星米>蒸>蛋+星尘>炒" },
+    { "id": "roujiamo",   "name": "陨石肉夹馍", "price": 24, "patience": 60, "weight": 2, "hint": "面团>烤>肉切>夹" },
+    { "id": "salad",      "name": "氧气沙拉",   "price": 20, "patience": 45, "weight": 2, "hint": "氧菜>切>加星尘>拌" }
+  ],
+  "transforms": [
+    { "station": "steamer", "input": "rice",  "duration": 8.0, "output": "rice_steamed", "verb": "蒸" },
+    { "station": "oven",    "input": "dough", "duration": 6.0, "output": "bun",          "verb": "烤" },
+    { "station": "board",   "input": "meat",  "chops": 3,       "output": "meat_cut",     "verb": "切" },
+    { "station": "board",   "input": "veg",   "chops": 3,       "output": "veg_cut",      "verb": "切" }
+  ],
+  "recipes": [
+    { "station": "wok",      "base": "rice_steamed", "add": ["egg", "stardust"], "duration": 6.0, "output": "fried_rice", "verb": "炒" },
+    { "station": "assemble", "base": "bun",          "add": ["meat_cut"],        "duration": 1.0, "output": "roujiamo",   "verb": "夹" },
+    { "station": "assemble", "base": "veg_cut",      "add": ["stardust"],        "duration": 1.5, "output": "salad",      "verb": "拌" }
+  ]
+}

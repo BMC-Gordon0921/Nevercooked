@@ -1,0 +1,33 @@
+{
+  "player": {
+    "speed": 200.0,
+    "sprint_speed": 340.0,
+    "sprint_duration": 0.5,
+    "sprint_cooldown": 0.9,
+    "foot_w": 24,
+    "foot_h": 16,
+    "sprite_w": 44,
+    "sprite_h": 64,
+    "walk_fps": 8,
+    "idle_fps": 4
+  },
+  "interaction": { "sticky_ms": 150, "reach_tiles": 1 },
+  "timing": { "throw_tiles": 1.5 },
+  "fade": { "alpha": 110, "time": 0.12, "min_height": 40 },
+  "round": { "duration": 180.0, "order_cap": 5 },
+  "scoring": {
+    "fresh_full": 1.0,
+    "fresh_late_small": 0.7,
+    "fresh_late_big": 0.4,
+    "late_small_ratio": 0.2,
+    "late_big_ratio": 0.5,
+    "combo_step": 0.1,
+    "combo_cap": 1.5,
+    "tip_ratio": 0.15,
+    "penalty_burnt": 8,
+    "penalty_unserved": 12,
+    "coin_ratio": 0.8,
+    "rush_multiplier": 2.0,
+    "rush_from": 165.0
+  }
+}

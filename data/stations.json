@@ -1,0 +1,12 @@
+{
+  "stations": [
+    { "id": "crate",    "name": "食材箱", "access": "nsew", "verb": "取",   "height": 54 },
+    { "id": "steamer",  "name": "蒸笼",   "access": "nsew", "verb": "蒸",   "height": 72, "heat": true },
+    { "id": "wok",      "name": "灶台",   "access": "nsew", "verb": "炒",   "height": 62, "heat": true },
+    { "id": "oven",     "name": "烤炉",   "access": "nsew", "verb": "烤",   "height": 76, "heat": true },
+    { "id": "board",    "name": "切台",   "access": "nsew", "verb": "切",   "height": 50 },
+    { "id": "assemble", "name": "组装台", "access": "nsew", "verb": "做",   "height": 54 },
+    { "id": "serve",    "name": "出餐口", "access": "nsew", "verb": "出餐", "height": 56 },
+    { "id": "trash",    "name": "垃圾桶", "access": "nsew", "verb": "丢",   "height": 48 }
+  ]
+}

@@ -1,0 +1,21 @@
+# --- local tooling -------------------------------------------------------
+# 926 MB of vendored MCP / venv / wheels used only to build the assets.
+_sb/
+
+# --- python --------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# --- generated captures (regenerate with tests/film.py, tools/audio/preview.py)
+tests/film/
+tests/*_preview.wav
+
+# --- os / editor ---------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/

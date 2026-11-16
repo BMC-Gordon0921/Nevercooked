@@ -1,0 +1,14 @@
+{
+  "names": {
+    "void": "#0B0E14", "ink": "#1C2230", "slate": "#2E3646", "steel": "#4A5468",
+    "fog": "#7C8798", "silver": "#C8D0DC", "white": "#FFFFFF", "leather": "#6B3F2A",
+    "cyan": "#38E1FF", "blue": "#1E6BFF", "pink": "#FF3FA4", "violet": "#B14BFF",
+    "amber": "#FFC24B", "lime": "#7CFF6B", "cream": "#F4E6C8", "yolk": "#FFD24A",
+    "tomato": "#E0452F", "leaf": "#3FA34D", "plum": "#9B6BD6", "cocoa": "#8A4B2A",
+    "blush": "#FFE9F5", "roast": "#3A2A20", "flame_light": "#FFF3B0", "flame": "#FF9A3C",
+    "flame_deep": "#E2531F", "steam": "#BFE9FF", "wine": "#5A2E6B", "night": "#2B1B33",
+    "spark": "#FFE066", "mist": "#D7E3F0", "glow": "#9FF5FF", "black": "#000000",
+    "ivory": "#F7F2E6", "sand": "#E9DCC2", "clay": "#C98B57", "wood": "#B57A44",
+    "mint": "#BEE8D5", "teal": "#2C7C8A", "steel_light": "#DDE5EF", "glass": "#CFEFF7"
+  }
+}

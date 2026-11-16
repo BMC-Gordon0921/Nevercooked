@@ -1,0 +1,9 @@
+{
+  "_comment": "8-bits-music-mcp create_8bit_melody 的真实返回（trackId/duration 已剥离）。该包不会把这段谱子渲染成声音，用 _sb/render_score.py 渲染。",
+  "source": "8-bits-music-mcp 1.0.6 / create_8bit_melody",
+  "trackId": "melody_1794754443787",
+  "bpm": 120,
+  "instrument": "square",
+  "notes": ["C5", "E5", "G5", "E5", "C5", "D5", "E5", "G5", "A5", "G5", "E5", "D5", "C5", "G4", "C5", "C5"],
+  "durations": ["8n", "8n", "8n", "8n", "8n", "8n", "4n", "4n", "8n", "8n", "8n", "8n", "8n", "8n", "4n", "4n"]
+}

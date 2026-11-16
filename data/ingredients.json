@@ -1,0 +1,17 @@
+{
+  "items": [
+    { "id": "rice",         "name": "星米",       "icon": "item_rice",         "tags": ["raw"] },
+    { "id": "rice_steamed", "name": "蒸饭",       "icon": "item_rice_steamed", "tags": ["prep"] },
+    { "id": "egg",          "name": "星鸡蛋",     "icon": "item_egg",          "tags": ["raw"] },
+    { "id": "stardust",     "name": "星尘",       "icon": "item_stardust",     "tags": ["seasoning"] },
+    { "id": "dough",        "name": "面团",       "icon": "item_dough",        "tags": ["raw"] },
+    { "id": "bun",          "name": "烤饼",       "icon": "item_bun",          "tags": ["prep"] },
+    { "id": "meat",         "name": "陨石肉",     "icon": "item_meat",         "tags": ["raw", "choppable"] },
+    { "id": "meat_cut",     "name": "肉片",       "icon": "item_meat_cut",     "tags": ["prep"] },
+    { "id": "veg",          "name": "氧气菜",     "icon": "item_veg",          "tags": ["raw", "choppable"] },
+    { "id": "veg_cut",      "name": "菜丝",       "icon": "item_veg_cut",      "tags": ["prep"] },
+    { "id": "fried_rice",   "name": "星尘蛋炒饭", "icon": "item_fried_rice",   "tags": ["dish"] },
+    { "id": "roujiamo",     "name": "陨石肉夹馍", "icon": "item_roujiamo",     "tags": ["dish"] },
+    { "id": "salad",        "name": "氧气沙拉",   "icon": "item_salad",        "tags": ["dish", "perishable"] }
+  ]
+}
