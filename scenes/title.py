@@ -66,13 +66,23 @@ class TitleScene:
         self._floor_strip(surface)
 
         cx = config.SCREEN_W // 2
-        textmod.shadow_text(surface, "乱灶", (cx - 150, 218), size=84, color=COL_FLAME,
+        # Wordmark: four characters in fire red, the exclamation in neon teal.
+        # The two halves are centred as one block, so the bang keeps its weight
+        # without drifting off the optical centre.
+        head = "欢闹厨房"
+        bang = "！"
+        w_head = textmod.render(head, 84, COL_FLAME, bold=True).get_width()
+        w_bang = textmod.render(bang, 84, COL_TEAL, bold=True).get_width()
+        x_head = cx - (w_head + w_bang) // 2 + w_head // 2
+        x_bang = cx + (w_head + w_bang) // 2 - w_bang // 2
+        textmod.shadow_text(surface, head, (x_head, 218), size=84, color=COL_FLAME,
                             bold=True, anchor="center", shadow=SHADOW)
-        textmod.shadow_text(surface, "星港食堂", (cx + 132, 218), size=84, color=COL_TEAL,
+        textmod.shadow_text(surface, bang, (x_bang, 218), size=84, color=COL_TEAL,
                             bold=True, anchor="center", shadow=SHADOW)
-        textmod.shadow_text(surface, "MESSY WOK  ·  STARPORT CANTEEN", (cx, 282),
-                            size=18, color=COL_STEEL, anchor="center", shadow=(255, 255, 255))
-        textmod.shadow_text(surface, "碗底港 · 第七码头  ·  三分钟一局", (cx, 318),
+        textmod.shadow_text(surface, "N E V E R C O O K E D !", (cx, 284),
+                            size=22, color=COL_STEEL, bold=True, anchor="center",
+                            shadow=(255, 255, 255))
+        textmod.shadow_text(surface, "碗底港 · 第七码头  ·  三分钟一局", (cx, 320),
                             size=17, color=COL_INK, anchor="center", shadow=(255, 255, 255))
 
         pulse = int(170 + 70 * math.sin(self.t * 3.0))

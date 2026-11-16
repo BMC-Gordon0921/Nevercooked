@@ -19,7 +19,7 @@ class App:
     def __init__(self):
         pygame.init()
         audio.init()
-        pygame.display.set_caption("乱灶：星港食堂  Messy Wok: Starport Canteen")
+        pygame.display.set_caption("欢闹厨房！  Nevercooked!")
         self.scale = self._pick_scale()
         size = (config.SCREEN_W * self.scale, config.SCREEN_H * self.scale)
         flags = 0

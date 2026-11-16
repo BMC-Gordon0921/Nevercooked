@@ -1,6 +1,8 @@
-# 乱灶：星港食堂 / Messy Wok: Starport Canteen
+# 欢闹厨房！ / Nevercooked!
 
 可玩 demo v0.1 —— 碗底港第七码头的一人食档口。3 分钟一局，边跑边切边炒。
+
+> 原名《乱灶：星港食堂》（Messy Wok: Starport Canteen），2026-11 定名《欢闹厨房！》/ Nevercooked!。
 
 仓库：<https://github.com/BMC-Gordon0921/Nevercooked>
 

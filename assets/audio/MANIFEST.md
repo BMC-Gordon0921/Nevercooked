@@ -1,4 +1,4 @@
-# assets/audio — 《乱灶：星港食堂》音频清单
+# assets/audio — 《欢闹厨房！》音频清单
 
 ## 制作方式
 
