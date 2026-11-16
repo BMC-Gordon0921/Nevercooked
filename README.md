@@ -2,6 +2,19 @@
 
 可玩 demo v0.1 —— 碗底港第七码头的一人食档口。3 分钟一局，边跑边切边炒。
 
+仓库：<https://github.com/BMC-Gordon0921/Nevercooked>
+
+## 获取与安装
+
+```bash
+git clone https://github.com/BMC-Gordon0921/Nevercooked.git
+cd Nevercooked
+python -m pip install -r requirements.txt
+python main.py
+```
+
+Windows 上装好依赖后直接双击 `启动游戏.cmd` 即可。
+
 ## 运行
 
 双击 `启动游戏.cmd`，或者：

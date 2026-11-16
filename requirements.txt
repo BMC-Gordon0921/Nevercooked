@@ -1,0 +1,5 @@
+# 运行游戏只需要这一个依赖（pygame 社区版，API 与 pygame 一致）
+pygame-ce>=2.5.0
+
+# tools/audio/ 下的音效合成脚本额外需要 numpy（不影响游戏运行）
+# numpy>=2.0
