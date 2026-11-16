@@ -10,7 +10,8 @@ _UP = (pygame.K_w, pygame.K_UP)
 
 
 class Intent:
-    __slots__ = ("mx", "my", "sprint", "interact", "throw", "menu", "confirm")
+    __slots__ = ("mx", "my", "sprint", "interact", "throw", "menu", "confirm",
+                 "click_pos", "nav", "pick", "skip", "help")
 
     def __init__(self):
         self.mx = 0
@@ -20,11 +21,22 @@ class Intent:
         self.throw = False
         self.menu = False
         self.confirm = False
+        self.click_pos = None
+        self.nav = 0        # -1 / +1: menu left-right
+        self.pick = 0       # 1..9: numbered menu choice
+        self.skip = False   # space: dismiss the tutorial prompt
+        self.help = False   # H: toggle tutorial / guide
 
     def clear_edges(self):
         self.interact = False
         self.throw = False
         self.confirm = False
+        self.menu = False
+        self.click_pos = None
+        self.nav = 0
+        self.pick = 0
+        self.skip = False
+        self.help = False
 
 
 def read(events):
@@ -57,7 +69,18 @@ def read(events):
                 intent.menu = True
             elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 intent.confirm = True
+            elif event.key in (pygame.K_LEFT,):
+                intent.nav = -1
+            elif event.key in (pygame.K_RIGHT,):
+                intent.nav = 1
+            elif pygame.K_1 <= event.key <= pygame.K_9:
+                intent.pick = event.key - pygame.K_1 + 1
+            elif event.key == pygame.K_SPACE:
+                intent.skip = True
+            elif event.key == pygame.K_h:
+                intent.help = True
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
                 intent.interact = True
+                intent.click_pos = event.pos
     return intent

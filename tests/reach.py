@@ -1,10 +1,10 @@
-"""Geometry guard: the chef targets the tile in front, and only that tile.
+"""Geometry guard: the cook targets the tile in front, and only that tile.
 
-Regression test for "standing between two machines grabs the wrong one".
-Rule under test (game/systems/interaction.py:probe_rect):
-  * the probe is exactly one tile -- the tile the chef faces;
-  * a diagonal position never reaches anything the chef is not facing;
-  * standing beside a machine always targets that machine.
+Two rules, both under test here:
+  * strict aiming (challenge mode): the target is exactly the tile faced, so a
+    diagonal position never reaches a machine that is merely nearby;
+  * loose aiming (easier modes): facing the machine wins, but standing next to
+    one is enough -- the tile is not a pixel-perfect hitbox.
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pygame
 
 from core import config
-from game.systems import interaction
+from game.systems import difficulty, interaction
 from game.world import World
 
 CARDINALS = ((1, 0), (-1, 0), (0, 1), (0, -1))
@@ -39,19 +39,11 @@ def station_at(world, rect):
     return None
 
 
-def main():
-    pygame.init()
-    pygame.display.set_mode((config.SCREEN_W, config.SCREEN_H))
-    world = World()
-    player = world.player
-    tune = config.TUNING["player"]
-    inner = world.room.inflate(-config.TILE, -config.TILE)
-    tile = config.TILE
-    failures = []
-
+def strict(world, player, tune, inner, tile, failures):
+    """Challenge mode: only the faced tile counts."""
+    difficulty.set_level("hard")
     for station in world.stations:
         home = station.reach
-        # 1. beside it, facing it -> it
         for dx, dy in CARDINALS:
             spot = pygame.Rect(home.x + dx * tile, home.y + dy * tile, tile, tile)
             if not inner.contains(spot):
@@ -62,7 +54,6 @@ def main():
                 failures.append("%s: beside %s facing back hit %s"
                                 % (station.stype, (dx, dy),
                                    getattr(found, "stype", found)))
-        # 2. diagonal to it, facing any cardinal -> only what that tile holds
         for dx in (-1, 1):
             for dy in (-1, 1):
                 spot = pygame.Rect(home.x + dx * tile, home.y + dy * tile, tile, tile)
@@ -80,6 +71,42 @@ def main():
                             % (station.stype, (dx, dy), (fx, fy),
                                getattr(found, "stype", found),
                                getattr(want, "stype", want)))
+
+
+def loose(world, player, tune, inner, tile, failures):
+    """Easy/standard: beside a machine is enough, and facing beats proximity."""
+    difficulty.set_level("normal")
+    for station in world.stations:
+        home = station.reach
+        for dx, dy in CARDINALS:
+            spot = pygame.Rect(home.x + dx * tile, home.y + dy * tile, tile, tile)
+            if not inner.contains(spot):
+                continue
+            place(player, spot, tune, -dx, -dy)          # facing the machine
+            found = interaction.find_target(world, player)
+            if found is not station:
+                failures.append("loose %s: facing it from %s hit %s"
+                                % (station.stype, (dx, dy),
+                                   getattr(found, "stype", found)))
+            place(player, spot, tune, dx, dy)            # facing away from it
+            found = interaction.find_target(world, player)
+            if found is None:
+                failures.append("loose %s: standing at %s facing away hit nothing"
+                                % (station.stype, (dx, dy)))
+
+
+def main():
+    pygame.init()
+    pygame.display.set_mode((config.SCREEN_W, config.SCREEN_H))
+    world = World()
+    player = world.player
+    tune = config.TUNING["player"]
+    inner = world.room.inflate(-config.TILE, -config.TILE)
+    tile = config.TILE
+    failures = []
+
+    strict(world, player, tune, inner, tile, failures)
+    loose(world, player, tune, inner, tile, failures)
 
     for line in failures:
         print("FAIL", line)

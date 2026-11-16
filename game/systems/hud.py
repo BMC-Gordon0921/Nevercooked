@@ -83,6 +83,10 @@ def draw_tickets(surface, world):
                             size=14, color=COL_AMBER, anchor="topright")
         textmod.shadow_text(surface, order.hint, (card.x + 36, card.y + 25), size=10,
                             color=COL_FOG)
+        left = int(round(max(0.0, order.time_left)))
+        timer_col = COL_TOMATO if left <= 8 else (COL_AMBER if left <= 15 else COL_FOG)
+        textmod.shadow_text(surface, "%ds" % left, (card.right - 8, card.y + 25),
+                            size=11, color=timer_col, anchor="topright")
         y += card.h + 8
     for index, order in enumerate(orders.queue[:2]):
         card = pygame.Rect(x, y + index * 26, 168, 20)
@@ -121,11 +125,46 @@ def draw_hints(surface, hints):
         x += width + gap
 
 
-def draw_target_label(surface, cam, world, label):
-    player = world.player
+def draw_tutorial(surface, text):
+    """First-shift prompt: one line, top centre, out of the kitchen's way."""
+    if not text:
+        return
+    label = textmod.render(text, 16, config.color("white"), True)
+    hint = textmod.render("空格 跳过", 12, config.color("fog"))
+    width = max(label.get_width(), hint.get_width()) + 36
+    card = pygame.Rect(0, 0, width, 58)
+    card.midtop = (config.SCREEN_W // 2, BAR_H + 8)
+    veil = pygame.Surface(card.size, pygame.SRCALPHA)
+    veil.fill((11, 14, 20, 214))
+    surface.blit(veil, card.topleft)
+    pygame.draw.rect(surface, config.color("cyan"), card, 1, border_radius=8)
+    surface.blit(label, label.get_rect(midtop=(card.centerx, card.y + 8)))
+    surface.blit(hint, hint.get_rect(midbottom=(card.centerx, card.bottom - 6)))
+
+
+def draw_guide(surface, label):
+    """Bottom-left next-step line: the recipe turned into a walking order."""
     if not label:
         return
+    textmod.shadow_text(surface, "下一步 · " + label,
+                        (14, config.SCREEN_H - config.BAR_BOTTOM_H + 20),
+                        size=14, color=config.color("cyan"), bold=True,
+                        anchor="midleft", shadow=(11, 14, 20))
+
+
+def draw_target_label(surface, cam, world, label, detail=None, ok=True):
+    """One place for the prompt: what F does, and -- when it cannot -- why."""
+    if not label:
+        return
+    player = world.player
     foot = cam.rect(player.foot)
-    pos = (foot.centerx, foot.bottom - player.height * cam.zoom - 26)
-    textmod.shadow_text(surface, label, pos, size=17, color=COL_CYAN, bold=True,
+    base = foot.bottom - player.height * cam.zoom - 26
+    if detail:
+        base -= 16
+    pos = (foot.centerx, base)
+    color = COL_CYAN if ok else COL_AMBER
+    textmod.shadow_text(surface, label, pos, size=17, color=color, bold=True,
                         anchor="midbottom", shadow=(250, 246, 236))
+    if detail:
+        textmod.shadow_text(surface, detail, (foot.centerx, base + 17), size=13,
+                            color=COL_FOG, anchor="midbottom", shadow=(250, 246, 236))

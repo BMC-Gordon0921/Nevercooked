@@ -10,13 +10,13 @@ DISH_LIST = config.DISH_LIST
 
 
 class Order:
-    def __init__(self, dish_id):
+    def __init__(self, dish_id, patience_scale=1.0):
         dish = DISHES[dish_id]
         self.dish_id = dish_id
         self.name = dish["name"]
         self.hint = dish.get("hint", "")
         self.price = int(dish["price"])
-        self.patience = float(dish["patience"])
+        self.patience = float(dish["patience"]) * patience_scale
         self.time_left = self.patience
         self.state = "active"
         self.age = 0.0
@@ -33,10 +33,13 @@ class Order:
 class OrderBoard:
     """Deterministic cadence: calm, busy, batch, rush."""
 
-    def __init__(self, seed=7, cap=5, duration=180.0):
+    def __init__(self, seed=7, cap=5, duration=180.0, patience_scale=1.0,
+                 interval_scale=1.0):
         self.rng = random.Random(seed)
         self.cap = cap
         self.duration = duration
+        self.patience_scale = patience_scale
+        self.interval_scale = interval_scale
         self.active = []
         self.queue = []
         self.served = []
@@ -72,13 +75,13 @@ class OrderBoard:
 
     def update(self, dt, elapsed):
         if elapsed < self.duration and elapsed >= self.next_spawn:
-            order = Order(self._pick_dish(elapsed))
+            order = Order(self._pick_dish(elapsed), self.patience_scale)
             self.spawned += 1
             if len(self.active) < self.cap:
                 self.active.append(order)
             else:
                 self.queue.append(order)
-            self.next_spawn = elapsed + self._interval(elapsed)
+            self.next_spawn = elapsed + self._interval(elapsed) * self.interval_scale
         while self.queue and len(self.active) < self.cap:
             self.active.append(self.queue.pop(0))
         for order in self.active:

@@ -8,6 +8,9 @@ import pygame
 from core import assets, audio, config, text as textmod
 from game import world as world_mod
 from game.systems import cooking, hud, interaction, ordering, render, scoring
+from game.systems import difficulty as diff
+from game.systems import guide
+from game.systems.tutorial import Tutorial
 from game.systems import movement
 from game.systems.camera import Camera
 
@@ -18,13 +21,16 @@ HINTS_LOADED = [("F", "交互"), ("Q", "抛出")]
 
 
 class GameScene:
-    def __init__(self, app):
+    def __init__(self, app, level=None):
         self.app = app
+        self.level = level or getattr(app, "difficulty", diff.DEFAULT)
+        diff.set_level(self.level)
         self.world = world_mod.World()
         cfg = config.TUNING["round"]
         self.duration = float(cfg["duration"])
-        self.world.orders = ordering.OrderBoard(seed=7, cap=int(cfg["order_cap"]),
-                                               duration=self.duration)
+        self.world.orders = ordering.OrderBoard(
+            seed=7, cap=int(cfg["order_cap"]), duration=self.duration,
+            patience_scale=diff.patience_scale(), interval_scale=diff.spawn_scale())
         self.world.score = scoring.ScoreBoard()
         self.player = self.world.player
         frames = assets.sheet("chef", config.TUNING["player"]["sprite_w"],
@@ -37,6 +43,12 @@ class GameScene:
         self.fail_seen = 0
         self.target = None
         self.label = ""
+        self.detail = ""
+        self.label_ok = False
+        self.suggest = []
+        self.guide = None
+        self.show_help = True
+        self.tutorial = Tutorial() if diff.assist("tutorial") else None
         self.toast = ""
         self.toast_t = 0.0
         self.paused = False
@@ -67,25 +79,41 @@ class GameScene:
 
         movement.update_actor(player, intent, dt, self.world)
         self.target = interaction.find_target(self.world, player)
-        player.target_age += dt
-        label, enabled = interaction.describe(player, self.target)
-        self.label = label if enabled else ""
-        if self.target is not None and not enabled:
-            self.label = label
+        label, ok = interaction.describe(player, self.target, self.world)
+        self.label, self.label_ok = label, ok
+        self.detail = interaction.explain(player, self.target, self.world)[1]
+        if not diff.assist("reason"):
+            self.detail = ""
+        self.suggest = (interaction.suggestions(self.world, player)
+                        if diff.assist("dots") else [])
 
-        if intent.interact:
-            event = interaction.interact(self.world, player, self.target)
-            self._feedback(event)
+        if intent.skip and self.tutorial is not None:
+            self.tutorial.skip()
+        if intent.help:
+            self.show_help = not self.show_help
+
+        clicked = self._station_at_screen(intent.click_pos) if intent.click_pos else None
+        if clicked is not None:
+            self.target = clicked
+            self.label = ""
+            event, detail = interaction.interact_with_detail(self.world, player, clicked)
+            self._seen(event, detail)
+            self._machine_sound(event)
+        elif intent.interact:
+            event, detail = interaction.interact_with_detail(self.world, player, self.target)
+            self._seen(event, detail)
             self._machine_sound(event)
         if intent.throw:
             event = interaction.throw(self.world, player)
-            self._feedback(event)
+            self._seen(event, "")
 
         self.world.update(dt)
         cooking.tick_all(self.world, dt)
         self._ready_chimes()
         self.camera.center_on((player.foot.centerx, player.foot.bottom - 24))
         self.world.orders.update(dt, self.elapsed)
+        self.guide = (guide.next_step(self.world, player)
+                      if diff.assist("guide") and self.show_help else None)
         if self.world.orders.spawned > self.orders_seen:
             self.orders_seen = self.world.orders.spawned
             audio.play("sfx_order", 0.60)
@@ -103,7 +131,32 @@ class GameScene:
         if self.toast_t > 0:
             self.toast_t -= dt
 
+    def _station_at_screen(self, pos):
+        """Click a machine to use it; the cursor does the walking.
+
+        Easy-mode only (see difficulty.py): the moment it is always available it
+        replaces the movement the whole game is about.
+        """
+        if not diff.assist("mouse"):
+            return None
+        cam = self.camera
+        if pos[1] < config.BAR_TOP_H:
+            return None
+        wx = cam.x + (pos[0] - cam.ox) / float(cam.zoom)
+        wy = cam.y + (pos[1] - cam.oy) / float(cam.zoom)
+        best = None
+        best_dist = 1 << 30
+        for station in self.world.stations:
+            if not station.reach.inflate(10, 10).collidepoint(wx, wy):
+                continue
+            dist = abs(station.foot.centerx - self.player.foot.centerx)
+            if dist < best_dist:
+                best, best_dist = station, dist
+        return best
+
     def _coach(self):
+        if not diff.assist("coach"):
+            return ""
         if self.player.hand is not None:
             return "手上：%s — 走到设备前按 F 放进去，Q 可以抛出去" % self.player.hand.name
         for station in self.world.stations:
@@ -111,13 +164,28 @@ class GameScene:
                 return "设备上还有活 — 记得回去按 F 取出来"
         return "空手 — 走到料箱前按 F 拿食材"
 
-    def _feedback(self, event):
+    def _seen(self, event, detail=""):
+        """One funnel: sound, toast and tutorial progress all read the same event."""
+        self._feedback(event, detail)
+        if self.tutorial is not None:
+            self.tutorial.on_event(event)
+
+    def _feedback(self, event, detail=""):
         if event in ("take", "pickup"):
             audio.play("sfx_pickup", 0.85)
-            self._toast("拿到了", config.color("cyan"))
+            self._toast(detail or "拿到了", config.color("cyan"))
         elif event in ("load", "add"):
             audio.play("sfx_place", 0.85)
-            self._toast("放好了", config.color("cyan"))
+            self._toast(detail or "放好了", config.color("cyan"))
+        elif event == "swap":
+            audio.play("sfx_pickup", 0.85)
+            self._toast("换手了", config.color("cyan"))
+        elif event == "drop":
+            audio.play("sfx_place", 0.7)
+            self._toast("放在脚边了", config.color("fog"))
+        elif event == "throw":
+            audio.play("sfx_place", 0.6)
+            self._toast("扔出去了", config.color("fog"))
         elif event == "chop":
             audio.play(CHOP_STREAM.choice(CHOP_CUES), 0.75)
             self._toast("切切切", config.color("silver"))
@@ -132,7 +200,7 @@ class GameScene:
             self._toast("没这张单", config.color("pink"))
         elif event == "reject":
             audio.play("sfx_fail", 0.5)
-            self._toast("不对", config.color("tomato"))
+            self._toast(detail or "不对", config.color("tomato"))
         elif event == "trash":
             audio.play("sfx_trash", 0.75)
             self._toast("扔了", config.color("fog"))
@@ -168,29 +236,44 @@ class GameScene:
 
     def _finish(self):
         from scenes.results import ResultsScene
-        self.app.switch(ResultsScene(self.app, self.world.score))
+        self.app.switch(ResultsScene(self.app, self.world.score, self.level))
 
     # -- draw -----------------------------------------------------------
     def draw(self, surface):
         cam = self.camera
-        render.render(surface, self.world, cam)
-        render.draw_target(surface, cam, self.world, self.target, self.label)
+        show_aim = diff.assist("aim")
+        render.render(surface, self.world, cam,
+                      aim_ok=self.label_ok, aim=show_aim,
+                      suggestions=self.suggest)
         render.draw_hand(surface, cam, self.world)
         render.draw_popups(surface, cam, self.world)
 
         hud.draw_top_bar(surface, self.world, self.elapsed, self.duration)
         hud.draw_tickets(surface, self.world)
-        hud.draw_target_label(surface, cam, self.world, self.label)
+        hud.draw_target_label(surface, cam, self.world, self.label, self.detail,
+                              self.label_ok)
+        if self.guide is not None and self.show_help:
+            render.draw_pulse(surface, cam, self.guide.get("station"))
+        if self.tutorial is not None and self.show_help:
+            hud.draw_tutorial(surface, self.tutorial.text())
+        if self.guide is not None and self.show_help:
+            hud.draw_guide(surface, self.guide.get("label"))
 
         hints = HINTS_IDLE
         if self.label:
             hints = [("F", self.label), ("Q", "抛出"), ("右键", "冲刺")]
         hud.draw_hints(surface, hints)
 
+        textmod.shadow_text(surface, "%s · 结算 x%.2f" % (diff.data()["name"],
+                                                          diff.score_scale()),
+                            (16, config.SCREEN_H - 20), size=12,
+                            color=config.color("fog"), anchor="midleft")
         # Coach line lives in the bottom bar so it never sits on the kitchen floor.
-        textmod.shadow_text(surface, self._coach(), (config.SCREEN_W - 20,
-                                                    config.SCREEN_H - 20),
-                            size=13, color=config.color("fog"), anchor="midright")
+        coach = self._coach()
+        if coach:
+            textmod.shadow_text(surface, coach, (config.SCREEN_W - 20,
+                                                 config.SCREEN_H - 20),
+                                size=13, color=config.color("fog"), anchor="midright")
         if self.toast_t > 0 and self.toast:
             textmod.shadow_text(surface, self.toast, (config.SCREEN_W // 2,
                                                       config.SCREEN_H - 78),
@@ -219,6 +302,10 @@ class GameScene:
                                     size=13, color=config.color("fog"), anchor="midleft")
                 textmod.shadow_text(surface, "%d 币" % dish["price"], (card.right - 42, row),
                                     size=16, color=config.color("amber"), anchor="midright")
+            textmod.shadow_text(surface, "%s · 结算 x%.2f" % (diff.data()["name"],
+                                                              diff.score_scale()),
+                                (cx, card.bottom - 78), size=13,
+                                color=config.color("steel"), anchor="center")
             textmod.shadow_text(surface, "WASD 移动 · 右键/Shift 冲刺 · F 交互 · Q 抛出",
                                 (cx, card.bottom - 54), size=14,
                                 color=config.color("fog"), anchor="center")

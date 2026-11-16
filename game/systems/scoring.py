@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 
 from core import config
+from game.systems import difficulty
 
 CFG = config.TUNING["scoring"]
 
@@ -24,14 +25,19 @@ def combo_multiplier(combo):
     return min(1.0 + CFG["combo_step"] * combo, CFG["combo_cap"])
 
 
-def settle(order, quality, combo, elapsed):
-    """Return a dict with the full breakdown of one delivery."""
+def settle(order, quality, combo, elapsed, scale=None):
+    """Return a dict with the full breakdown of one delivery.
+
+    `scale` is the difficulty payout multiplier: hard pays 1.5x, easy 0.8x.
+    """
+    if scale is None:
+        scale = difficulty.score_scale()
     rush = CFG["rush_multiplier"] if elapsed >= CFG["rush_from"] else 1.0
     fresh = min(freshness(order), quality)
     mult = combo_multiplier(combo)
     base = order.price * rush
     tip = order.price * CFG["tip_ratio"] * order.patience_ratio
-    income = base * fresh * mult + tip
+    income = (base * fresh * mult + tip) * scale
     return {
         "base": round(base, 1),
         "fresh": fresh,
@@ -39,6 +45,7 @@ def settle(order, quality, combo, elapsed):
         "tip": round(tip, 1),
         "income": int(round(income)),
         "rush": rush,
+        "scale": scale,
     }
 
 

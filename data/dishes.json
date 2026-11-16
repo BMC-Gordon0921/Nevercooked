@@ -1,8 +1,8 @@
 {
   "dishes": [
-    { "id": "fried_rice", "name": "星尘蛋炒饭", "price": 18, "patience": 60, "weight": 3, "hint": "星米>蒸>蛋+星尘>炒" },
-    { "id": "roujiamo",   "name": "陨石肉夹馍", "price": 24, "patience": 60, "weight": 2, "hint": "面团>烤>肉切>夹" },
-    { "id": "salad",      "name": "氧气沙拉",   "price": 20, "patience": 45, "weight": 2, "hint": "氧菜>切>加星尘>拌" }
+    { "id": "fried_rice", "name": "星尘蛋炒饭", "price": 18, "patience": 95, "weight": 3, "hint": "星米>蒸>蛋+星尘>炒" },
+    { "id": "roujiamo",   "name": "陨石肉夹馍", "price": 24, "patience": 95, "weight": 2, "hint": "面团>烤>肉切>夹" },
+    { "id": "salad",      "name": "氧气沙拉",   "price": 20, "patience": 80, "weight": 2, "hint": "氧菜>切>加星尘>拌" }
   ],
   "transforms": [
     { "station": "steamer", "input": "rice",  "duration": 8.0, "output": "rice_steamed", "verb": "蒸" },

@@ -23,7 +23,21 @@ def load_json(name):
 
 
 TUNING = load_json("tuning.json")
-LAYOUT = load_json("layout.json")
+
+# The kitchen itself is a text map (see data/map.md).  A broken map must never
+# stop the game: it falls back to the factory floor and says why on the title.
+MAP_FILE = "map.json"
+MAP_ERROR = None
+try:
+    from core import mapfile
+    LAYOUT = mapfile.load(os.path.join(DATA_DIR, MAP_FILE))
+except Exception as exc:            # MapError, but never let a map kill boot
+    MAP_ERROR = str(exc)
+    try:
+        from core import mapfile as _mapfile
+        LAYOUT = _mapfile.load(os.path.join(DATA_DIR, "map_default.json"))
+    except Exception:
+        LAYOUT = load_json("layout.json")
 PALETTE = load_json("palette.json")["names"]
 _DISH_DOC = load_json("dishes.json")
 DISH_LIST = _DISH_DOC["dishes"]

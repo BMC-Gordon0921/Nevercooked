@@ -1,0 +1,67 @@
+{
+  "order": [
+    "easy",
+    "normal",
+    "hard"
+  ],
+  "default": "normal",
+  "levels": {
+    "easy": {
+      "name": "轻松",
+      "patience": 1.25,
+      "spawn": 1.25,
+      "score": 0.8,
+      "assists": {
+        "aim": true,
+        "guide": true,
+        "dots": true,
+        "slot_hint": true,
+        "coach": true,
+        "tutorial": true,
+        "loose_aim": true,
+        "swap": true,
+        "auto_free_hand": true,
+        "reason": true,
+        "mouse": true
+      }
+    },
+    "normal": {
+      "name": "标准",
+      "patience": 1,
+      "spawn": 1,
+      "score": 1,
+      "assists": {
+        "aim": true,
+        "guide": true,
+        "dots": true,
+        "slot_hint": true,
+        "coach": true,
+        "tutorial": true,
+        "loose_aim": true,
+        "swap": true,
+        "auto_free_hand": true,
+        "reason": true,
+        "mouse": false
+      }
+    },
+    "hard": {
+      "name": "挑战",
+      "patience": 0.85,
+      "spawn": 0.8,
+      "score": 1.5,
+      "assists": {
+        "aim": false,
+        "guide": false,
+        "dots": false,
+        "slot_hint": false,
+        "coach": false,
+        "tutorial": false,
+        "loose_aim": false,
+        "swap": false,
+        "auto_free_hand": false,
+        "reason": false,
+        "mouse": false
+      }
+    }
+  }
+}

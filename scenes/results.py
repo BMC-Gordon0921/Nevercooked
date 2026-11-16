@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import pygame
 
-from core import config, text as textmod
+from core import config, profile, text as textmod
+from game.systems import difficulty
 
 COL_IVORY = config.color("ivory")
 COL_CREAM = config.color("cream")
@@ -32,13 +33,16 @@ def rank_of(stars):
 
 
 class ResultsScene:
-    def __init__(self, app, score):
+    def __init__(self, app, score, level=None):
         self.app = app
         self.score = score
+        self.level = level or getattr(app, "difficulty", difficulty.DEFAULT)
+        self.info = difficulty.data(self.level)
         self.t = 0.0
         stars = score.final_stars()
         self.stars = stars
         self.coins = score.coins()
+        self.data, self.opened = profile.record(self.level, stars)
 
     def update(self, dt, intent):
         self.t += dt
@@ -46,7 +50,7 @@ class ResultsScene:
             return
         if intent.confirm:
             from scenes.game import GameScene
-            self.app.switch(GameScene(self.app))
+            self.app.switch(GameScene(self.app, self.level))
         elif intent.menu:
             from scenes.title import TitleScene
             self.app.switch(TitleScene(self.app))
@@ -66,6 +70,11 @@ class ResultsScene:
         rank, color = rank_of(self.stars)
         textmod.shadow_text(surface, rank, (cx, top + 52), size=30, color=color, bold=True,
                             anchor="center", shadow=SHADOW)
+        textmod.shadow_text(surface, self.info["name"], (card.left + 60, top + 52),
+                            size=16, color=COL_SLATE, anchor="midleft", shadow=SHADOW)
+        textmod.shadow_text(surface, "x%.2f" % self.info["score"], (card.right - 60, top + 52),
+                            size=16, color=COL_TEAL, bold=True, anchor="midright",
+                            shadow=SHADOW)
         pygame.draw.line(surface, COL_SAND, (card.left + 48, top + 82), (card.right - 48, top + 82), 2)
 
         rows = [
@@ -91,6 +100,10 @@ class ResultsScene:
                             color=COL_GOLD, bold=True, anchor="midright", shadow=SHADOW)
         textmod.shadow_text(surface, "灶币 +%d" % self.coins, (cx, y + 76), size=20,
                             color=COL_TEAL, bold=True, anchor="center", shadow=SHADOW)
+        if self.opened:
+            textmod.shadow_text(surface, "挑战模式已解锁！同一张桌上再试一次",
+                                (cx, card.bottom - 62), size=15, color=COL_FLAME,
+                                bold=True, anchor="center", shadow=SHADOW)
         textmod.shadow_text(surface, "Enter 再来一局      Esc 回标题",
                             (cx, card.bottom - 26), size=17, color=COL_SLATE, anchor="center",
                             shadow=SHADOW)

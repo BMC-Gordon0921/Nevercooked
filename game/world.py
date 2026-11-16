@@ -21,6 +21,7 @@ class World:
         self.stations = []
         self.items = []
         self.popups = []
+        self.tosses = []
         self.time = 0.0
         self.paused = False
         self.orders = None
@@ -35,6 +36,7 @@ class World:
         self.bounds = pygame.Rect(self.room.x, self.room.y + config.TILE // 2,
                                   self.room.w, self.room.h - config.TILE)
         self._build_walls(layout["room"]["wall"])
+        self._build_blocks(layout.get("blocks") or [])
         self._build_stations(layout["stations"])
         spawn = layout["spawn"]
         self.player = Actor(self._foot_for_tile(*spawn))
@@ -68,6 +70,14 @@ class World:
             self._add_wall(ox, oy + index * tiles, "wall_side", WALL_SIDE_H)
             self._add_wall(ox + (cols - 1) * tiles, oy + index * tiles, "wall_side", WALL_SIDE_H)
 
+    def _build_blocks(self, blocks):
+        """Interior '#' from the map: pillars and dividers that block movement."""
+        for col, row in blocks:
+            tile = self.tile_rect(col, row)
+            wall = Entity(tile, "wall_side", WALL_SIDE_H, layer_bias=-10,
+                          solid=True, color=(74, 84, 104), label=None)
+            self.entities.append(wall)
+
     def _add_wall(self, x, y, key, height):
         wall = Entity(pygame.Rect(x, y, config.TILE, config.TILE), key, height,
                       layer_bias=-10, solid=True, color=(74, 84, 104), label=None)
@@ -97,11 +107,9 @@ class World:
         item.owner_kind = "hand"
 
     def drop_to_floor(self, actor, item):
-        drop = GroundItem(item, pygame.Rect(actor.foot.centerx - 8,
-                                            actor.foot.bottom - 6, 16, 16))
-        self.entities.append(drop)
+        """Put an item down at the cook's feet (F on empty floor, free-hand)."""
         actor.hand = None
-        return drop
+        return self.drop_at(item, pygame.Rect(actor.foot.centerx, actor.foot.bottom, 1, 1), actor)
 
     def feed(self, station, item):
         """Put an item into a station slot (ownership transfers here)."""
@@ -109,11 +117,44 @@ class World:
         item.owner = station
         item.owner_kind = "station"
 
-    def drop_at(self, item, rect):
-        """Place an item on the floor at an arbitrary spot (kept inside the room)."""
-        foot = pygame.Rect(rect.centerx - 8, rect.centery - 8, 16, 16)
-        foot.clamp_ip(self.room.inflate(-config.TILE * 3, -config.TILE * 3))
-        drop = GroundItem(item, foot)
+    def spot_is_free(self, foot):
+        """True when this footprint is inside the room and clear of solids."""
+        if not self.room.inflate(-config.TILE, -config.TILE).contains(foot):
+            return False
+        for solid in self.solids():
+            if foot.colliderect(solid.foot):
+                return False
+        return True
+
+    def drop_at(self, item, rect, actor=None):
+        """Place an item on the floor as near `rect` as it can actually rest.
+
+        The old clamp shrank the room by 3 tiles on each side, which collapsed
+        768x384 into a zero-height rect: every single toss was forced onto one
+        horizontal line.  Now the landing spot is walked back toward the cook
+        until it clears stations, walls and the room edge.
+        """
+        size = GroundItem.SIZE
+        foot = pygame.Rect(0, 0, size, size)
+        foot.center = (int(rect.centerx), int(rect.centery))
+        origin = pygame.Vector2(foot.center)
+        goal = pygame.Vector2(actor.foot.center) if actor is not None else pygame.Vector2(self.room.center)
+        direction = goal - origin
+        if direction.length_squared() == 0:
+            direction = pygame.Vector2(0.0, 1.0)
+        direction = direction.normalize()
+        best = None
+        for step in range(0, 40):
+            spot = foot.copy()
+            spot.center = (int(origin.x + direction.x * step * 6),
+                           int(origin.y + direction.y * step * 6))
+            if self.spot_is_free(spot):
+                best = spot
+                break
+        if best is None:
+            best = pygame.Rect(0, 0, size, size)
+            best.center = self.room.center
+        drop = GroundItem(item, best)
         self.entities.append(drop)
         return drop
 
@@ -142,10 +183,20 @@ class World:
         return new
 
     def serve(self, actor, station):
-        """Hand a dish over at the pass. Matches the oldest live order."""
+        """F at the pass: hand over whatever is in hand."""
+        event = self.serve_item(actor, actor.hand, station)
+        if event == "served":
+            actor.hand = None
+        return event
+
+    def serve_item(self, actor, item, station):
+        """Hand a dish over at the pass. Matches the oldest live order.
+
+        `item` is explicit so a thrown dish can be served too; the caller owns
+        clearing the hand.
+        """
         from game.systems import scoring
 
-        item = actor.hand
         if item is None or not item.is_dish:
             return "reject"
         order = self.orders.match(item.item_id) if self.orders else None
@@ -156,7 +207,6 @@ class World:
         breakdown = scoring.settle(order, item.quality, self.score.combo, self.time)
         self.score.add(breakdown)
         self.orders.deliver(order)
-        actor.hand = None
         self.consume(item)
         station.flash = 1.0
         self.last_breakdown = breakdown
@@ -178,6 +228,9 @@ class World:
             popup["life"] -= dt
             popup["y"] -= 26 * dt
         self.popups = [p for p in self.popups if p["life"] > 0]
+        for toss in self.tosses:
+            toss["t"] += dt
+        self.tosses = [t for t in self.tosses if t["t"] < 0.18]
 
     def solids(self):
         return [e for e in self.entities if e.solid]

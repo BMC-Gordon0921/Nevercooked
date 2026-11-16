@@ -45,9 +45,13 @@ class Item:
 class GroundItem(Entity):
     """An item lying on the floor. It never expires and never disappears."""
 
+    # 16x16 was smaller than the icon, so a dropped item read as a speck and
+    # had to be aimed at with the old one-tile probe.  26 still fits a tile.
+    SIZE = 26
+
     def __init__(self, item, foot):
         color = (200, 220, 240) if item.is_dish else (180, 170, 150)
-        super().__init__(foot, item.icon, 16, layer_bias=-40, solid=False,
+        super().__init__(foot, item.icon, GroundItem.SIZE, layer_bias=-40, solid=False,
                          color=color, label=None)
         self.item = item
         item.owner = self
