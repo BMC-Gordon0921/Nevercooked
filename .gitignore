@@ -13,6 +13,10 @@ venv/
 tests/film/
 tests/*_preview.wav
 
+# --- tool / MCP clutter (probe dumps, launcher logs) ----------------------
+*.log
+cat.json
+
 # --- os / editor ---------------------------------------------------------
 .DS_Store
 Thumbs.db
