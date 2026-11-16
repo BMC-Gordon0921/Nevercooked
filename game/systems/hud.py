@@ -153,18 +153,29 @@ def draw_guide(surface, label):
 
 
 def draw_target_label(surface, cam, world, label, detail=None, ok=True):
-    """One place for the prompt: what F does, and -- when it cannot -- why."""
+    """One place for the prompt: what F does, and -- when it cannot -- why.
+
+    It rides above the cook's hat on a dark chip.  A plain drop shadow was fine
+    on the floor and unreadable the moment the prompt landed on a bright enamel
+    counter, which is where it lands most of the time.
+    """
     if not label:
         return
     player = world.player
     foot = cam.rect(player.foot)
-    base = foot.bottom - player.height * cam.zoom - 26
-    if detail:
-        base -= 16
-    pos = (foot.centerx, base)
-    color = COL_CYAN if ok else COL_AMBER
-    textmod.shadow_text(surface, label, pos, size=17, color=color, bold=True,
-                        anchor="midbottom", shadow=(250, 246, 236))
-    if detail:
-        textmod.shadow_text(surface, detail, (foot.centerx, base + 17), size=13,
-                            color=COL_FOG, anchor="midbottom", shadow=(250, 246, 236))
+    tint = COL_CYAN if ok else COL_AMBER
+    main = textmod.render(label, 15, tint, True)
+    sub = textmod.render(detail, 12, COL_FOG) if detail else None
+    width = max(main.get_width(), sub.get_width() if sub is not None else 0) + 18
+    chip = pygame.Rect(0, 0, width, 40 if sub is not None else 24)
+    chip.midbottom = (foot.centerx, foot.bottom - player.height * cam.zoom - 4)
+    chip.clamp_ip(pygame.Rect(6, BAR_H + 6,
+                              config.SCREEN_W - 12,
+                              config.SCREEN_H - BAR_H - config.BAR_BOTTOM_H - 12))
+    veil = pygame.Surface(chip.size, pygame.SRCALPHA)
+    veil.fill((11, 14, 20, 172))
+    surface.blit(veil, chip.topleft)
+    pygame.draw.rect(surface, tint, chip, 1, border_radius=6)
+    surface.blit(main, main.get_rect(midtop=(chip.centerx, chip.y + 4)))
+    if sub is not None:
+        surface.blit(sub, sub.get_rect(midtop=(chip.centerx, chip.y + 26)))

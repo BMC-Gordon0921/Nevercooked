@@ -67,31 +67,93 @@ def _dist(entity, actor):
             + abs(entity.foot.centery - actor.foot.centery))
 
 
-def _in_tile(world, rect, actor, stations=True):
-    """Station or ground item belonging to this tile.
+def _station_in_tile(world, rect, actor):
+    """The station whose own tile holds this rect - nearest to the cook wins.
 
-    Stations are matched by their tile's centre, not by rect overlap: two
-    counters sharing a seam overlap by a pixel or two after any tolerance, and
-    that is exactly how standing between two of them used to grab the wrong one.
+    Matched by the tile's centre, not by rect overlap: two counters sharing a
+    seam overlap by a pixel or two after any tolerance, and that is exactly how
+    standing between them used to grab the wrong one.
     """
     best = None
     best_score = 1 << 30
-    if stations:
-        for station in world.stations:
-            if not station.reach.collidepoint(rect.centerx, rect.centery):
-                continue
-            score = _dist(station, actor)
-            if score < best_score:
-                best, best_score = station, score
+    for station in world.stations:
+        if not station.reach.collidepoint(rect.centerx, rect.centery):
+            continue
+        score = _dist(station, actor)
+        if score < best_score:
+            best, best_score = station, score
+    return best
+
+
+def _loose_in_tile(world, rect, actor):
+    best = None
+    best_score = 1 << 30
     for entity in world.entities:
         if not isinstance(entity, GroundItem) or not entity.alive:
             continue
         if not entity.foot.colliderect(rect):
             continue
-        score = _dist(entity, actor) - config.TILE  # a loose item beats a counter
+        score = _dist(entity, actor)
         if score < best_score:
             best, best_score = entity, score
     return best
+
+
+#: Plans that consume what the cook is holding.
+HAND_KINDS = ("load", "add", "swap", "serve", "trash")
+
+
+def takes_hand(actor, station, world):
+    """Would this station do something with what the cook holds right now?"""
+    if actor.hand is None or world is None:
+        return False
+    return _plan(actor, station, world)["kind"] in HAND_KINDS
+
+
+def nearby_taker(actor, world, radius=1):
+    """Nearest station around the cook that would take what he is holding."""
+    if actor.hand is None or world is None:
+        return None
+    best = None
+    best_key = None
+    for (col, row, dc, dr) in ring_tiles(actor, world, radius):
+        station = _station_in_tile(world, tile_rect(world, col, row), actor)
+        if station is None or not takes_hand(actor, station, world):
+            continue
+        key = (abs(dc) + abs(dr), _dist(station, actor))
+        if best_key is None or key < best_key:
+            best, best_key = station, key
+    return best
+
+
+def _in_tile(world, rect, actor, stations=True):
+    """Station or ground item belonging to this tile.
+
+    A loose item normally wins the tile, but not when the hands are full and the
+    machine right here would take what the cook is carrying: then the machine is
+    what he came for and the egg on the floor waits for the next press.
+    """
+    station = _station_in_tile(world, rect, actor) if stations else None
+    loose = _loose_in_tile(world, rect, actor)
+    if station is None or loose is None:
+        return station if loose is None else loose
+    return station if takes_hand(actor, station, world) else loose
+
+
+def _rank(world, actor, entity, dc, dr, foot=False):
+    """Sort key for loose aim; lower is better.
+
+    With a full hand a machine that would take it outranks everything else, and
+    tiles under the feet come before the ring.  That is the difference between
+    "the rice goes in the wok" and "the cook grabs the egg and drops the rice".
+    """
+    if isinstance(entity, GroundItem):
+        tier = 1 if actor.hand is not None else 0
+    else:
+        tier = 0 if takes_hand(actor, entity, world) else (2 if actor.hand is not None else 1)
+    dx, dy = actor.facing
+    dot = dc * dx + dr * dy
+    return (tier, 0 if foot else 1, -dot, abs(dc) + abs(dr), _dist(entity, actor))
 
 
 def _reachable(entity, actor, world):
@@ -117,22 +179,21 @@ def resolve(actor, world):
     if not difficulty.assist("loose_aim"):
         return _settle(actor, world, None)
 
-    dx, dy = actor.facing
     candidates = []
     for (col, row) in foot_tiles(actor, world):
         # Only loose items here: a solid machine cannot share a tile with the
         # cook, so anything found underfoot is a dropped dish or a crate lid.
-        found = _in_tile(world, tile_rect(world, col, row), actor, stations=False)
+        found = _loose_in_tile(world, tile_rect(world, col, row), actor)
         if found is not None:
-            candidates.append(((0, 0, 0, _dist(found, actor)), found))
+            candidates.append((_rank(world, actor, found, 0, 0, foot=True), found))
     for (col, row, dc, dr) in ring_tiles(actor, world, 1):
         if dc == 0 and dr == 0:
             continue
-        found = _in_tile(world, tile_rect(world, col, row), actor)
-        if found is None:
-            continue
-        dot = dc * dx + dr * dy  # +2 straight ahead, 0 sideways, -2 behind
-        candidates.append(((-dot, abs(dc) + abs(dr), 0, _dist(found, actor)), found))
+        rect = tile_rect(world, col, row)
+        for found in (_station_in_tile(world, rect, actor),
+                      _loose_in_tile(world, rect, actor)):
+            if found is not None:
+                candidates.append((_rank(world, actor, found, dc, dr), found))
     if not candidates:
         return _settle(actor, world, None)
     candidates.sort(key=lambda c: c[0])
@@ -242,6 +303,13 @@ def _plan(actor, target, world):
 
     if target is None:
         if hand is not None:
+            # F never drops an item the machine next to you was waiting for.
+            # Hard mode aims strictly, so a step off the tile used to turn
+            # "put the rice in the wok" into "throw the rice on the floor".
+            taker = nearby_taker(actor, world)
+            if taker is not None:
+                return plan("noop", "面朝 " + taker.defn["name"] + " 再按 F", False,
+                            "这台要 " + hand.name + "，别丢地上")
             return plan("drop", "放下 " + hand.name, True, "F 放下 · Q 抛出")
         return plan("noop", "", False, "")
 

@@ -65,6 +65,8 @@ python main.py
 - **手上东西可以直接换**：对另一台设备按 F，能收下的就换过去；空地按 F 放下；仍可 Q 抛出。
 - **会吃你手上东西的设备打琥珀 `!`**：省下一趟来回跑。
 - **抛出会自动吸附**：扔向设备附近（设备格子外扩 20px）就按同一套规则直接入槽 / 上板 / 开火 / 投料 / 出餐；扔偏了就落在脚边，随时能捡回来。
+- **手上有货时，台子优先于地上的散件**：站在灶台边、手上端着蒸饭、脚边还躺着一颗鸡蛋，按 F 先把饭放进锅，蛋留到下一次 —— 能收下手上东西的机器永远排在散件前面。
+- **F 不会再把手上的原料丢在台子外**：站在台子旁边但没对着它时，F 只会提示"面朝 灶台 再按 F"，东西还在手上；真要放下就走到空地按 F（落在身前一步，看得见也捡得回），或直接 Q 抛出。
 - 设备进度条带百分比，忙碌时头顶显示当前动作。
 
 ### 引导
@@ -152,12 +154,14 @@ python tests/throw.py       # 抛出：吸附进设备 / 被拒落地 / 捡回 /
 python tests/map.py         # 地图解析、坏图报错、内外一致性
 python tests/audio.py       # 每个被引用的音效都有文件、设备音效对位、完成提示只响一次
 python tests/code.py        # 兑换码：文字输入/退格、解锁挑战、错误码、Esc 取消
+python tests/fkey.py        # F 键：不会把原料丢在台子外、手上东西优先给机器、放下落在身前
 python tests/items_probe.py # 物品生命周期，leak 0
 python tests/full_round.py  # 随机输入跑满 180 秒后进结算
 python tests/bot.py         # 脚本玩家跑 180 秒，量吞吐（回归基线）
 python tests/film.py        # bot 跑 10 帧存 tests/film/，看镜头与构图
 python tests/shots.py       # 标题 / 游戏 / 结算三张截图
 python tests/shots2.py      # v0.2 截图：标题难度卡 / 瞄准与引导 / 加工中
+python tests/shot_fkey.py   # 截图：F 不会丢在台子外 / 手上有货时机器优先
 ```
 
 Linux/CI 上跑测试需要 `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy`。

@@ -107,9 +107,22 @@ class World:
         item.owner_kind = "hand"
 
     def drop_to_floor(self, actor, item):
-        """Put an item down at the cook's feet (F on empty floor, free-hand)."""
+        """Put an item down in front of the cook (F on empty floor).
+
+        Right under the feet the item hid behind the cook's own sprite, so the
+        first free spot one step ahead is preferred; blocked (counter, wall) it
+        falls back to the feet and drop_at walks it out from there.
+        """
         actor.hand = None
-        return self.drop_at(item, pygame.Rect(actor.foot.centerx, actor.foot.bottom, 1, 1), actor)
+        fx, fy = actor.facing
+        spot = pygame.Rect(0, 0, 1, 1)
+        spot.center = (int(actor.foot.centerx + fx * config.TILE // 2),
+                       int(actor.foot.centery + fy * config.TILE // 2))
+        probe = pygame.Rect(0, 0, GroundItem.SIZE, GroundItem.SIZE)
+        probe.center = spot.center
+        if not self.spot_is_free(probe):
+            spot.center = (int(actor.foot.centerx), int(actor.foot.bottom))
+        return self.drop_at(item, spot, actor)
 
     def feed(self, station, item):
         """Put an item into a station slot (ownership transfers here)."""
