@@ -8,7 +8,9 @@ row per round, then the verdict:
 
   900 is the design ceiling (18 tickets x ~52 stars), not a reachable gate on
   this kitchen: one unserved ticket costs ~55 stars, so 900 needs 17.5/18 and
-  the last ticket always lands inside the final ten seconds. The bar below is
+  the last ticket always lands inside the final ten seconds - the measured
+  ceiling is 17 tickets (896) even with the machines made five times faster.
+  The bar below is
   "comfortably S rank" (420) with room to spare; STRONG_GOAL is printed so a
   regression towards it stays visible.
 
@@ -18,7 +20,7 @@ has to rediscover them:
   throwing    Let the brain hand items over at arm's length (throwing.throw
               is F with a 1.5 tile reach). Over five seeds it cut walking 15%
               (19.4k -> 16.4k px) and hand-held time 16% -> 11%, and served
-              the same tickets: 767 mean against 807, because the kitchen is
+              the same tickets: 767 mean against 777, because the kitchen is
               machine-bound, not walk-bound, and a delivery that lands one
               second sooner can slip out of the 2x rush window that opens at
               165 s.
@@ -49,7 +51,7 @@ from core.input import Intent
 from game.systems import ai, difficulty, ordering
 from scenes.game import GameScene
 
-STRONG_FLOOR = 720     # comfortably S rank; the measured mean is ~807
+STRONG_FLOOR = 720     # comfortably S rank; the 20-seed mean is 777
 STRONG_GOAL = 900
 RELAXED_RANGE = (300, 520)
 NEED = 4          # seeds that must pass, out of 5
