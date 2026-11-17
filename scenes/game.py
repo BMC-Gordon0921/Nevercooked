@@ -5,16 +5,16 @@ import random
 
 import pygame
 
-from core import assets, audio, config, text as textmod
+from core import assets, audio, config, profile, text as textmod
 from game import world as world_mod
 from game.systems import cooking, hud, interaction, ordering, render, scoring
 from game.systems import difficulty as diff
-from game.systems import guide
+from game.systems import guide, nav
 from game.systems.tutorial import Tutorial
 from game.systems import movement
 from game.systems.camera import Camera
 
-HINTS_IDLE = [("F", "交互"), ("Q", "抛出"), ("右键", "冲刺")]
+HINTS_IDLE = [("F", "交互"), ("Q", "抛出"), ("右键", "冲刺"), ("Tab", "设置")]
 CHOP_CUES = ("sfx_chop_1", "sfx_chop_2", "sfx_chop_3")
 CHOP_STREAM = random.Random(4)
 HINTS_LOADED = [("F", "交互"), ("Q", "抛出")]
@@ -48,6 +48,10 @@ class GameScene:
         self.suggest = []
         self.guide = None
         self.show_help = True
+        self.show_path = True
+        self.path = None
+        self.goal = None
+        self.hold_cd = 0.0
         self.tutorial = Tutorial() if diff.assist("tutorial") else None
         self.toast = ""
         self.toast_t = 0.0
@@ -61,14 +65,63 @@ class GameScene:
         self.camera.center_on((self.player.foot.centerx, self.player.foot.bottom))
         # BGM sits ~10 dB under the effects: it is a backdrop, not the main event.
         audio.play_bgm("bgm_canteen_loop", 0.20)
+        self._load_settings()
+
+    # -- settings / guidance -------------------------------------------
+    def _load_settings(self):
+        """Read the one file that remembers volume and the path toggle."""
+        current = profile.settings()
+        self.show_path = bool(current.get("path", True))
+        audio.set_sfx_volume(current.get("sfx", 0.8))
+        audio.set_bgm_volume(current.get("bgm", 0.25))
+
+    def on_resume(self):
+        """Called when the settings screen closes over a live round."""
+        self._load_settings()
+
+    def _open_settings(self):
+        from scenes.settings import SettingsScene
+        self.paused = True
+        self.app.switch(SettingsScene(self.app, self))
+
+    def _turn_to(self, entity):
+        """Face whatever F is about to act on, so the cook reads as doing it."""
+        if entity is None or not diff.assist("autoface"):
+            return
+        foot = getattr(entity, "foot", None)
+        if foot is None:
+            return
+        self.player.face(foot.centerx - self.player.foot.centerx,
+                         foot.centery - self.player.foot.centery)
+
+    def _update_path(self, player):
+        """Thick floor arrows: recomputed from the live tile grid every frame."""
+        self.path = None
+        self.goal = None
+        if self.guide is None or not self.show_help:
+            return
+        station = self.guide.get("station")
+        if station is None:
+            return
+        self.goal = station
+        if not self.show_path:
+            return
+        goal_cell = nav.stand_for(self.world, player, station)
+        if goal_cell is not None:
+            self.path = nav.route(self.world, player, goal_cell)
 
     # -- loop -----------------------------------------------------------
     def update(self, dt, intent):
         if self.paused:
             if intent.menu:
                 self.paused = False
+            elif intent.settings:
+                self._open_settings()
             elif intent.confirm:
                 self.app.switch(__import__("scenes.title", fromlist=["TitleScene"]).TitleScene(self.app))
+            return
+        if intent.settings:
+            self._open_settings()
             return
         if intent.menu:
             self.paused = True
@@ -92,17 +145,26 @@ class GameScene:
         if intent.help:
             self.show_help = not self.show_help
 
+        self.hold_cd = max(0.0, self.hold_cd - dt)
         clicked = self._station_at_screen(intent.click_pos) if intent.click_pos else None
+        # Holding F walks a chain -- take, then put it in -- instead of asking for
+        # one exact tap per step, which was the main "sticky" feeling at a counter.
+        repeat = (diff.assist("hold_f") and intent.interact_held and self.hold_cd <= 0.0
+                  and not self.paused)
         if clicked is not None:
+            self._turn_to(clicked)
             self.target = clicked
             self.label = ""
             event, detail = interaction.interact_with_detail(self.world, player, clicked)
             self._seen(event, detail)
             self._machine_sound(event)
-        elif intent.interact:
+        elif intent.interact or repeat:
+            self._turn_to(self.target)
             event, detail = interaction.interact_with_detail(self.world, player, self.target)
             self._seen(event, detail)
             self._machine_sound(event)
+            if repeat and event not in ("", "none", "noop"):
+                self.hold_cd = 0.30
         if intent.throw:
             event = interaction.throw(self.world, player)
             self._seen(event, "")
@@ -113,7 +175,8 @@ class GameScene:
         self.camera.center_on((player.foot.centerx, player.foot.bottom - 24))
         self.world.orders.update(dt, self.elapsed)
         self.guide = (guide.next_step(self.world, player)
-                      if diff.assist("guide") and self.show_help else None)
+                      if diff.assist("guide") else None)
+        self._update_path(player)
         if self.world.orders.spawned > self.orders_seen:
             self.orders_seen = self.world.orders.spawned
             audio.play("sfx_order", 0.60)
@@ -244,24 +307,25 @@ class GameScene:
         show_aim = diff.assist("aim")
         render.render(surface, self.world, cam,
                       aim_ok=self.label_ok, aim=show_aim,
-                      suggestions=self.suggest)
+                      suggestions=self.suggest, path=self.path,
+                      goal=self.goal, show_path=self.show_path)
         render.draw_hand(surface, cam, self.world)
         render.draw_popups(surface, cam, self.world)
 
         hud.draw_top_bar(surface, self.world, self.elapsed, self.duration)
-        hud.draw_tickets(surface, self.world)
+        hud.draw_tickets(surface, self.world, guide.current_order(self.world))
         hud.draw_target_label(surface, cam, self.world, self.label, self.detail,
                               self.label_ok)
+        banner = None
         if self.guide is not None and self.show_help:
-            render.draw_pulse(surface, cam, self.guide.get("station"))
+            banner = hud.draw_step_banner(surface, self.guide)
         if self.tutorial is not None and self.show_help:
-            hud.draw_tutorial(surface, self.tutorial.text())
-        if self.guide is not None and self.show_help:
-            hud.draw_guide(surface, self.guide.get("label"))
+            top = (banner.bottom + 6) if banner is not None else None
+            hud.draw_tutorial(surface, self.tutorial.text(), top=top)
 
         hints = HINTS_IDLE
         if self.label:
-            hints = [("F", self.label), ("Q", "抛出"), ("右键", "冲刺")]
+            hints = [("F", self.label), ("Q", "抛出"), ("Tab", "设置")]
         hud.draw_hints(surface, hints)
 
         textmod.shadow_text(surface, "%s · 结算 x%.2f" % (diff.data()["name"],
@@ -309,5 +373,5 @@ class GameScene:
             textmod.shadow_text(surface, "WASD 移动 · 右键/Shift 冲刺 · F 交互 · Q 抛出",
                                 (cx, card.bottom - 54), size=14,
                                 color=config.color("fog"), anchor="center")
-            textmod.shadow_text(surface, "Esc 继续    Enter 回标题", (cx, card.bottom - 28),
+            textmod.shadow_text(surface, "Esc 继续    Tab 设置    Enter 回标题", (cx, card.bottom - 28),
                                 size=14, color=config.color("fog"), anchor="center")

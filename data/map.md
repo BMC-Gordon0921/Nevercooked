@@ -4,7 +4,7 @@
 
 ```json
 {
-  "name": "第七码头 · 默认厨房",
+  "name": "第七码头 · 紧凑厨房",
   "tile": 64,                      // 每格像素（改这个会连带改变整间厨房的尺寸）
   "origin": [96, 160],             // 房间左上角在世界里的位置
   "legend": {
@@ -41,7 +41,12 @@
 | --- | --- |
 | `data/map.json` | 当前生效的地图（随便改） |
 | `data/map_default.json` | 出厂地图，出错时的兜底；建议别改 |
+| `data/map_classic.json` | 老版厨房（料箱在左、设备一字排开），想换回去时用 |
 
 ## 换一张图
 
-最简单：复制 `data/map_default.json` 到 `data/map.json`，在 `rows` 里重新画一遍，然后运行游戏。想保留两张图时，把旧图另存成 `data/map_alt.json`，再把 `core/config.py` 里 `MAP_FILE = "map.json"` 改成 `"map_alt.json"`。
+最简单：复制 `data/map_default.json` 到 `data/map.json`，在 `rows` 里重新画一遍，然后运行游戏。
+
+想换回老厨房：把 `core/config.py` 里 `MAP_FILE = "map.json"` 改成 `"map_classic.json"`。想同时保留两张图，就把旧图另存成 `data/map_alt.json`，再按同样办法切换。
+
+两张内置厨房的差别只有走位成本：紧凑厨房里米箱贴着蒸笼（取米两步、上锅一步），老厨房是料箱一排、设备一排，跑一趟要横穿厨房。

@@ -23,6 +23,7 @@ from core import config
 from game.entities.item import GroundItem
 from game.systems import difficulty, interaction
 from game.world import World
+from tests.layout import open_aisle
 
 FAIL = []
 
@@ -97,13 +98,17 @@ check("F picks the egg up", event == "pickup" and getattr(player.hand, "item_id"
 
 print("E. hard mode, full hands, open floor: dropping still works")
 world, player = fresh("hard", (0, 1), "rice")
-player.foot.center = (world.room.centerx, world.room.y + config.TILE * 2 + config.TILE // 2)
+cell, (dx, dy), _ahead = open_aisle(world)
+player.foot.center = world.tile_rect(*cell).center
+player.face(dx, dy)
 cook = player.foot.center
 event, _, _, _ = press(world, player)
 drops = loose(world)
 check("F drops the rice", event == "drop" and player.hand is None, event)
 check("it lands in front of the sprite",
-      bool(drops) and drops[0].foot.centery > cook[1], [tuple(g.foot.center) for g in drops])
+      bool(drops) and ((drops[0].foot.centerx - cook[0]) * dx
+                       + (drops[0].foot.centery - cook[1]) * dy) > 0,
+      [tuple(g.foot.center) for g in drops])
 check("it lands where it can be reached again", bool(drops) and world.spot_is_free(drops[0].foot))
 
 print("F. hard mode, full hands, facing the bin: still trashes")

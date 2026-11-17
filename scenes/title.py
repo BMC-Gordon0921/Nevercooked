@@ -62,6 +62,10 @@ class TitleScene:
             self.buffer = ""
             self.message = ""
             return
+        if intent.settings:
+            from scenes.settings import SettingsScene
+            self.app.switch(SettingsScene(self.app, self))
+            return
         if intent.nav:
             self.index = (self.index + intent.nav) % len(self.levels)
         if intent.pick and 1 <= intent.pick <= len(self.levels):
@@ -205,7 +209,7 @@ class TitleScene:
         if self.prompt_open:
             self._prompt(surface, cx)
         textmod.shadow_text(surface,
-                            "← → 选难度     WASD 移动   右键/Shift 冲刺   F 交互   Q 抛出     C 兑换码",
+                            "← → 选难度    Tab 设置    F 交互   Q 抛出   C 兑换码",
                             (cx, config.SCREEN_H - 40), size=15, color=COL_INK,
                             anchor="center", shadow=COL_SAND)
 

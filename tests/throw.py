@@ -15,6 +15,7 @@ from core import config
 from game.entities.item import GroundItem
 from game.systems import difficulty, interaction
 from game.world import World
+from tests.layout import open_aisle
 
 TILE = config.TILE
 
@@ -80,13 +81,17 @@ def main():
                 problems.append("dish landed inside %s" % station.stype)
 
     # 3. empty aisle: throw forward, pick it back up with F
-    place(player, world, 2, 2, 0, 1)
+    cell, (dx, dy), ahead = open_aisle(world)
+    if cell is None:
+        problems.append("this kitchen has no open aisle to throw across")
+    else:
+        place(player, world, cell[0], cell[1], dx, dy)
     item = world.new_item("egg")
     world.give_to_hand(player, item)
     interaction.throw(world, player)
     if player.hand is not None:
         problems.append("hand still full after an open-floor throw")
-    want = world.tile_rect(2, 3)
+    want = world.tile_rect(*ahead) if ahead else pygame.Rect(0, 0, 0, 0)
     if not any(isinstance(e, GroundItem) and e.foot.colliderect(want)
                for e in world.entities):
         problems.append("egg did not land in the aimed tile")

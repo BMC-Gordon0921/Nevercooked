@@ -1,7 +1,8 @@
-"""What this cook has unlocked.
+"""What this cook has unlocked, and how they like to hear the kitchen.
 
-One small JSON in the project root: best stars per level and which levels are
-open.  Never required to play -- a missing or corrupt file just means a fresh
+One small JSON in the project root: best stars per level, which levels are open,
+and the settings (sfx volume, music volume, whether the ground arrow path is
+drawn).  Never required to play -- a missing or corrupt file just means a fresh
 profile, so a re-clone or a hand-edit can never lock somebody out.
 """
 from __future__ import annotations
@@ -13,11 +14,35 @@ from core import config
 
 PATH = os.path.join(config.ROOT, "profile.json")
 S_RANK = 420          # must match scenes/results.py rank_of()
-DEFAULT = {"best": {}, "unlocked": ["easy", "normal"], "runs": 0}
+DEFAULT_SETTINGS = {"sfx": 0.8, "bgm": 0.25, "path": True}
+DEFAULT = {"best": {}, "unlocked": ["easy", "normal"], "runs": 0,
+           "settings": dict(DEFAULT_SETTINGS)}
+
+
+def _clamp(value, fallback):
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    return 0.0 if value < 0.0 else 1.0 if value > 1.0 else value
+
+
+def _settings(raw):
+    """Merge whatever is on disk over the defaults, clamping junk."""
+    out = dict(DEFAULT_SETTINGS)
+    if isinstance(raw, dict):
+        if "sfx" in raw:
+            out["sfx"] = _clamp(raw.get("sfx"), out["sfx"])
+        if "bgm" in raw:
+            out["bgm"] = _clamp(raw.get("bgm"), out["bgm"])
+        if "path" in raw:
+            out["path"] = bool(raw.get("path"))
+    return out
 
 
 def _fresh():
-    return {"best": {}, "unlocked": list(DEFAULT["unlocked"]), "runs": 0}
+    return {"best": {}, "unlocked": list(DEFAULT["unlocked"]), "runs": 0,
+            "settings": dict(DEFAULT_SETTINGS)}
 
 
 def load():
@@ -37,6 +62,7 @@ def load():
     if isinstance(unlocked, list):
         out["unlocked"] = [value for value in unlocked if isinstance(value, str)]
     out["runs"] = int(data.get("runs", 0) or 0)
+    out["settings"] = _settings(data.get("settings"))
     return out
 
 
@@ -94,3 +120,19 @@ def record(level, stars):
     data["unlocked"] = [name for name in order if name in data["unlocked"]]
     save(data)
     return data, opened
+
+
+def settings(data=None):
+    """The current settings dict (always complete, always clamped)."""
+    return dict((data or load()).get("settings") or _settings(None))
+
+
+def save_settings(patch, data=None):
+    """Merge one or more settings keys and persist. Returns the merged dict."""
+    data = data or load()
+    merged = _settings(data.get("settings"))
+    merged.update(_settings(dict(merged, **{k: v for k, v in patch.items()
+                                            if k in DEFAULT_SETTINGS})))
+    data["settings"] = merged
+    save(data)
+    return merged

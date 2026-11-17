@@ -1,0 +1,37 @@
+{
+  "_doc": "Brain tuning. dwell=forced pause after each action (s); lookahead=missions in flight; flex=extra slots for parallel work; skip=chance of a worse-but-legal job; max_orders=tickets fed to the planner; idle_wait=stand still after a dish lands (s); sprint=hold sprint on long walks; burn_urgent=seconds on a hot plate that force a rescue; hand_timeout=seconds before a held item nothing wants is binned; turn_slack=px inside a tile still counted as aligned; stuck=seconds of no progress before a mission is dropped; cooldown=seconds that dish is skipped after being dropped; preheat=steam the next rice before its ticket lands; nearest=bias legal jobs towards the player's side of the kitchen; clash=seconds of penalty for reusing a busy machine.",
+  "strong": {
+    "dwell": 0,
+    "lookahead": 3,
+    "flex": 2,
+    "skip": 0,
+    "max_orders": 3,
+    "idle_wait": 0,
+    "sprint": true,
+    "burn_urgent": 1.5,
+    "hand_timeout": 20,
+    "turn_slack": 12,
+    "stuck": 22,
+    "cooldown": 10,
+    "preheat": 0,
+    "nearest": 0,
+    "clash": 11
+  },
+  "relaxed": {
+    "dwell": 0.5,
+    "lookahead": 3,
+    "flex": 0,
+    "skip": 0.22,
+    "max_orders": 3,
+    "idle_wait": 1,
+    "sprint": false,
+    "burn_urgent": 1.5,
+    "hand_timeout": 20,
+    "turn_slack": 12,
+    "stuck": 40,
+    "cooldown": 14,
+    "preheat": 0,
+    "nearest": 0,
+    "clash": 11
+  }
+}

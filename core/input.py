@@ -11,8 +11,8 @@ _UP = (pygame.K_w, pygame.K_UP)
 
 class Intent:
     __slots__ = ("mx", "my", "sprint", "interact", "throw", "menu", "confirm",
-                 "click_pos", "nav", "pick", "skip", "help",
-                 "text", "backspace", "code")
+                 "click_pos", "nav", "updown", "pick", "skip", "help",
+                 "settings", "text", "backspace", "code", "interact_held")
 
     def __init__(self):
         self.mx = 0
@@ -24,12 +24,15 @@ class Intent:
         self.confirm = False
         self.click_pos = None
         self.nav = 0        # -1 / +1: menu left-right
+        self.updown = 0     # -1 / +1: menu up-down
         self.pick = 0       # 1..9: numbered menu choice
         self.skip = False   # space: dismiss the tutorial prompt
         self.help = False   # H: toggle tutorial / guide
+        self.settings = False   # Tab: open the settings screen
         self.text = ""       # printable characters typed this frame (code entry)
         self.backspace = 0   # backspaces this frame
         self.code = False    # C: open the redemption-code prompt
+        self.interact_held = False   # F / left button currently down
 
     def clear_edges(self):
         self.interact = False
@@ -38,9 +41,11 @@ class Intent:
         self.menu = False
         self.click_pos = None
         self.nav = 0
+        self.updown = 0
         self.pick = 0
         self.skip = False
         self.help = False
+        self.settings = False
         self.text = ""
         self.backspace = 0
         self.code = False
@@ -65,6 +70,8 @@ def read(events):
     # Shift for keyboards, right mouse button for mice. Space stays free.
     mouse = pygame.mouse.get_pressed(3)
     intent.sprint = bool(keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT] or mouse[2])
+    # Held (not pressed) so a chain can be walked by keeping F down.
+    intent.interact_held = bool(keys[pygame.K_f] or mouse[0])
 
     for event in events:
         if event.type == pygame.KEYDOWN:
@@ -86,16 +93,22 @@ def read(events):
                 intent.menu = True
             elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 intent.confirm = True
-            elif event.key in (pygame.K_LEFT,):
+            elif event.key == pygame.K_LEFT:
                 intent.nav = -1
-            elif event.key in (pygame.K_RIGHT,):
+            elif event.key == pygame.K_RIGHT:
                 intent.nav = 1
+            elif event.key == pygame.K_UP:
+                intent.updown = -1
+            elif event.key == pygame.K_DOWN:
+                intent.updown = 1
             elif pygame.K_1 <= event.key <= pygame.K_9:
                 intent.pick = event.key - pygame.K_1 + 1
             elif event.key == pygame.K_SPACE:
                 intent.skip = True
             elif event.key == pygame.K_h:
                 intent.help = True
+            elif event.key == pygame.K_TAB:
+                intent.settings = True
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:
                 intent.interact = True

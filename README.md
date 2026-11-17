@@ -38,7 +38,8 @@ python main.py
 | F / 鼠标左键 | 一键上下文交互：取料、放料、切、蒸、炒、装盘、出餐、丢 |
 | Q | 把手上东西朝面向抛出去（1.5 格，扔掉或隔空甩进设备） |
 | 空格 | 跳过后面的新手引导卡片 |
-| H | 显示 / 隐藏 新手卡 + 每单的路径引导 |
+| H | 显示 / 隐藏 顶部步骤条 + 每单工序提示（地面箭头由设置开关控制） |
+| Tab | 打开设置（音效音量 / 背景音乐音量 / 地面箭头路径开关） |
 | C | 标题页打开兑换码输入框（直接解锁挑战模式） |
 | ← → / 1 2 3 | 标题页选难度（高难度需先解锁） |
 | Esc | 暂停 / 回标题 |
@@ -72,8 +73,32 @@ python main.py
 ### 引导
 
 - 首局有 4 张新手卡片，按你做的事推进（取料 → 装料 → 取出 → 出餐），空格跳过，H 随时开关。
-- 纸条之外还有**下一步提示**：底部左侧写着"下一步 · 去蒸笼 取出 星米饭"，目标设备上打青色脉冲环和箭头。工序链是从 `data/dishes.json` 的 transforms / recipes 反推的，改菜谱引导自动跟着变。
-- 难度会影响辅助量：见下。
+- **地面粗箭头路径**：从厨师脚下一直铺到目标设备所在格，描边加流动箭头（chevron），目标格四角亮起 L 形括号。路径由 A* 在真实可走格上算出（`game/systems/nav.py`），绕开柱子和设备，不会贴墙穿模。
+- **顶部步骤条**：居中一条深色卡片，左边方块是这一步的动词（取 / 送 / 加 / 切 / 等 / 交 / 扔），中间写着“去蒸笼 蒸 星米”，右边是 `1/3` 的进度计数 —— 一局要做几步、现在第几步，一眼可见。
+- **订单票会跟着亮**：引导指向的那张票加青色边框和呼吸光晕，下面标“▲ 引导”，其余票自动往下让位，不会弄错该做哪一单。
+- **顶部箭头被夹在视口内**：第一排料箱的半身本来会跑到画面上沿之外，现在箭头停在顶栏下面，永远看得见。
+- 工序链从 `data/dishes.json` 的 transforms / recipes 反推（`game/systems/guide.py`），改菜谱引导自动跟着变；难度会影响显示哪些辅助：见下。
+
+### 设置
+
+游戏中按 `Tab`（标题页也可以）打开设置，改动**即时生效**并自动写进仓库根目录的 `profile.json`：
+
+| 项 | 作用 |
+| --- | --- |
+| 音效音量 | 所有一次性音效的总音量（0–100%，调的时候会响一声试听） |
+| 背景音乐 | 循环 BGM 音量，独立于音效 |
+| 地面箭头路径 | 关掉以后只保留顶部步骤条和目标格括号，不再铺地面路径 |
+
+↑↓ 选行、←→ 调整（音量 ±5%）、Enter / Esc 返回。设置界面会记住上一次的位置，下一局 `on_resume()` 重新读一遍，所以中途改完立刻能感觉到。
+
+### 像素字体
+
+界面上的字全部来自一张现烤的位图字集，不是系统字体缩放。
+
+- `assets/font/pixel12.png`（+ `_bold.png` / `.json`）：32 列 × 122 行、每格 12×12，共 3875 个字形，用系统宋体 12px 关抗锯齿烘出来，所以边缘是硬的 1-bit 像素——不会出现灰边。
+- `core/pixelfont.py` 只做整数倍放大：12 / 24 / 36 / 60 / 84px 五档，字距按 1px 补在相邻两个全宽字之间，标题的 wordmark（84px）也是同一套字画的。
+- `core/text.py` 的对外接口（`render` / `shadow_text` / `font`）没变，字集里查不到的字自动回退系统 TTF，所以不会出现方块。
+- 想换字源或补字：`python tools/font/bake_atlas.py`（`--font noto` 换成思源黑体，`--corpus-only` 只烘代码里真正用到的字）。
 
 ### 难度
 
@@ -85,7 +110,7 @@ python main.py
 | 标准 | ×1.0 | ×1.0 | ×1.0 | 除鼠标点设备外全部 |
 | 挑战 | ×0.85 | ×0.8 | ×1.5 | 全关：无瞄准格、无原因、无换手、无引导 |
 
-辅助开关就是 `difficulty.json` 里的 `assists`：`aim` / `reason` / `swap` / `mouse` / `tutorial` / `guide` / `dots`，按难度逐个关。
+辅助开关就是 `difficulty.json` 里的 `assists`：`aim` / `reason` / `swap` / `mouse` / `tutorial` / `guide` / `dots` / `loose_aim` / `autoface` / `hold_f`，按难度逐个关。`autoface` 是“按 F 自动转向目标”，`hold_f` 是“按住 F 连做”（取完成品自动接着装料，间隔 0.3 秒），挑战模式两样都没有。
 
 **挑战模式解锁**：在轻松或标准难度打出 S 评级（★ ≥ 420）后自动开放；结果页会提示，档案存在仓库根目录的 `profile.json`（记录各难度最佳星数、总局数、已解锁难度）。
 
@@ -109,7 +134,7 @@ python main.py
   "origin": [96, 160],
   "legend": { "#": {"kind": "wall"}, ".": {"kind": "floor"}, "@": {"kind": "spawn"},
               "r": {"kind": "crate", "item": "rice"}, "S": {"kind": "station", "station": "steamer"} },
-  "rows": ["############", "#re*.dmvS..#", "#....@.....#", "#B.W.O.A.T.#", "#...P......#", "############"]
+  "rows": ["############", "#.re*.v.dm.#", "#....@.....#", "#.SW..BA.OT#", "#....P.....#", "############"]
 }
 ```
 
@@ -118,6 +143,17 @@ python main.py
 - 改完直接跑游戏；写错了会在标题页显示红字提示并退回 `data/map_default.json`（不会崩）。
 - `python tools/map_preview.py` 生成 `tests/map_preview.png`，换图后先用它检查连通性。
 - 完整格式与规则见 `data/map.md`；想换文件就改 `core/config.py` 里的 `MAP_FILE`。
+- 自带两张图：默认的「紧凑厨房」（料箱贴着蒸笼，取米到上锅两步路）和老版的「老厨房」（`data/map_classic.json`，料箱在左、设备一字排开）。把 `MAP_FILE` 改成 `"map_classic.json"` 就换回去，两边都跑得通。
+
+### AI 帮厨算法
+
+`game/systems/ai.py` 是一个不需要窗口的 AI：给定 `GameScene`，每帧返回一个 `Intent`，和玩家按的是同一套输入、走的是同一套交互判定（没有任何后门）。
+
+- `Brain(profile)`，档位参数写在 `data/ai.json`：`strong`（全部辅助拉满、两单并行、8 秒蒸制提前开火）与 `relaxed`（一单一看、每步强制停顿、故意不抢单）。
+- 规划方式：把每道菜拆成「手能一次拿完」的阶段，按依赖图调度两条流水线，寻路复用 `game/systems/nav.py`（和地面箭头引导同一套 A*）。
+- 实测（挑战难度、180 秒、seed 1–5）：`strong` 824 / 827 / 746 / 879 / 758 ★（均值 807，全部 S 级，0 跑单）；`relaxed` 409 / 387 / 366 / 397 / 347 ★（均值 381，落在 A~S）。
+- 为什么不是 900+：一局只刷 18 单，每单约 52★，理论上限 937；掉一单就少 55★，而最后一两单总在最后十秒落地。807 已经是一局只跑 18 单的厨房里「几乎全服务」的分数，再往上要靠改菜谱节奏或降低走动成本，不是调参数能挤出来的。
+- 跑基准：`python tests/ai.py`（10 轮约 4 秒，不需要窗口）。
 
 ## 计分
 
@@ -133,11 +169,13 @@ game/systems/      movement、interaction、throwing、cooking、ordering、scor
                    difficulty、guide、tutorial、render、hud、camera
 game/world.py      世界状态与物品唯一持有权、摄像机取景范围
 scenes/            title（难度选择）、game、results
-data/              tuning / palette / stations / ingredients / dishes /
-                   map.json + map_default.json（厨房地图）/ difficulty.json
+data/              tuning / palette / stations / ingredients / dishes / ai.json /
+                   map.json + map_default.json（厨房地图）/ map_classic.json / difficulty.json
 tools/pixel/       pxlib + make_tiles / make_art / make_stations / make_chef（资产生成脚本）
 tools/audio/       make_sfx.py 音效合成 + wavio
 tools/map_preview.py  地图预览图
+tools/font/        bake_atlas.py（把系统宋体 12px 烘成字图集）+ sheet.py（样张）
+assets/font/       pixel12.png / pixel12_bold.png / pixel12.json（3875 个字形）
 tests/             见下
 ```
 
@@ -162,15 +200,20 @@ python tests/film.py        # bot 跑 10 帧存 tests/film/，看镜头与构图
 python tests/shots.py       # 标题 / 游戏 / 结算三张截图
 python tests/shots2.py      # v0.2 截图：标题难度卡 / 瞄准与引导 / 加工中
 python tests/shot_fkey.py   # 截图：F 不会丢在台子外 / 手上有货时机器优先
+python tests/path.py        # 引导：阶段/动词/步数、A* 路径连续且每格可走、终点就是目标设备
+python tests/settings.py    # 设置：默认值、音量步进与落盘、路径开关、返回上级场景
+python tests/font.py        # 像素字体：语料全覆盖、无灰边（1-bit alpha）、整数倍缩放
+python tests/ai.py          # AI 帮厨：两档 × 5 seed 跑满一局，打印星级与判决
+python tests/shots3.py      # v0.3 截图：地面箭头路径 / 设置页
 ```
 
 Linux/CI 上跑测试需要 `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy`。
 
 ## 这一版还没做
 
-- 灶罐（AI 帮厨）、合作模式、灶币消费与升级
+- 灶罐（AI 帮厨）已经有算法与基准，但还没接进对局里当你的搭档；合作模式、灶币消费与升级也还没做
 - 音效是脚本合成的 12 个短音（`tools/audio/make_sfx.py`），BGM 1 首，没有语音；试听全部音效用 `tests/audio_preview.wav`
 - 其余 9 道菜只有价目，没有工序链
-- 只有一间默认厨房（可以改 `data/map.json` 自定义，但没有游戏内编辑器）
-- 没有存档（只有 `profile.json` 记最佳成绩）、没有设置菜单、没有手柄
+- 只有两张内置厨房（可以改 `data/map.json` 自定义，但没有游戏内编辑器）
+- 没有多存档（只有 `profile.json` 记最佳成绩与设置）、没有手柄
 - 难度只影响节奏、结算与辅助开关，不改菜谱与设备数量

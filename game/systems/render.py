@@ -1,7 +1,12 @@
-"""The painter: floor, aim, sorted entities, occlusion fade, tosses, feedback.
+"""The painter: floor, path, aim, sorted entities, occlusion fade, tosses.
 
 Everything world-shaped goes through the camera, so the kitchen is drawn at
 2x and the eye sees a counter, not a map.
+
+Guidance is drawn in three layers on purpose: the thick arrow path sits on the
+floor (under the cook's feet), the goal brackets go above the furniture, and the
+pulse arrow hovers over the machine -- so a player can follow the route without
+hunting for a 3px ring that the counter hides.
 """
 from __future__ import annotations
 
@@ -12,7 +17,7 @@ import pygame
 from core import assets, config
 from game.entities.item import GroundItem
 from game.entities.station import Station
-from game.systems import interaction
+from game.systems import interaction, nav
 
 FADE = config.TUNING["fade"]
 COL_INK = config.color("ink")
@@ -21,6 +26,7 @@ COL_STEEL = config.color("steel")
 COL_CYAN = config.color("cyan")
 COL_FOG = config.color("fog")
 COL_AMBER = config.color("amber")
+COL_GOLD = config.color("amber_light") if "amber_light" in config.PALETTE else COL_AMBER
 COL_LABEL = (86, 96, 116)
 
 _BG = {}
@@ -73,6 +79,117 @@ def draw_floor(surface, world, cam):
     surface.blit(cam.sprite(bg), (cam.sx(pos[0]), cam.sy(pos[1])))
 
 
+# -- guidance ------------------------------------------------------------
+
+def _path_points(world, cam, cells):
+    """Cook's feet -> every tile centre, in screen space."""
+    player = world.player
+    pts = [(cam.sx(player.foot.centerx), cam.sy(player.foot.bottom - 10))]
+    for cell in cells:
+        cx, cy = nav.center_of(cell)
+        point = (cam.sx(cx), cam.sy(cy + 6))
+        if abs(point[0] - pts[-1][0]) + abs(point[1] - pts[-1][1]) >= 8:
+            pts.append(point)
+    return pts
+
+
+def _chevrons(layer, pts, tint, step=34.0, size=11):
+    """Arrow heads marching along the route: direction is readable at a glance."""
+    if len(pts) < 2:
+        return
+    colour = (tint[0], tint[1], tint[2], 238)
+    travelled = step * 0.5
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        seg = math.hypot(x1 - x0, y1 - y0)
+        if seg < 1.0:
+            continue
+        ux, uy = (x1 - x0) / seg, (y1 - y0) / seg
+        while travelled <= seg:
+            cx, cy = x0 + ux * travelled, y0 + uy * travelled
+            tip = (cx + ux * size, cy + uy * size)
+            left = (cx - ux * size * 0.35 - uy * size * 0.8,
+                    cy - uy * size * 0.35 + ux * size * 0.8)
+            right = (cx - ux * size * 0.35 + uy * size * 0.8,
+                     cy - uy * size * 0.35 - ux * size * 0.8)
+            pygame.draw.polygon(layer, colour, (tip, left, right))
+            travelled += step
+        travelled -= seg
+
+
+def draw_path(surface, world, cam, cells, tint=None):
+    """A continuous thick arrow path from the cook to the goal tile.
+
+    Drawn on its own translucent layer and blitted under the entities, so the
+    cook and the machines stand on the route instead of hiding it.
+    """
+    if not cells:
+        return
+    tint = tint or COL_CYAN
+    pts = _path_points(world, cam, cells)
+    if len(pts) < 2:
+        return
+    layer = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+    pygame.draw.lines(layer, (tint[0], tint[1], tint[2], 54), False, pts, 30)
+    pygame.draw.lines(layer, (tint[0], tint[1], tint[2], 104), False, pts, 20)
+    pygame.draw.lines(layer, (min(255, tint[0] + 40), min(255, tint[1] + 40),
+                              min(255, tint[2] + 40), 74), False, pts, 8)
+    _chevrons(layer, pts, tint)
+    surface.blit(layer, (0, 0))
+
+
+def draw_goal_tile(surface, cam, world, station, tint=None):
+    """Corner brackets on the goal tile: reads even when a 76px oven fills it."""
+    if station is None:
+        return
+    tint = tint or COL_CYAN
+    rect = cam.rect(station.reach)
+    pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 220.0)
+    arm = 20
+    thick = 4
+    for (cx, cy, sx, sy) in ((rect.left, rect.top, 1, 1),
+                             (rect.right, rect.top, -1, 1),
+                             (rect.left, rect.bottom, 1, -1),
+                             (rect.right, rect.bottom, -1, -1)):
+        pygame.draw.line(surface, COL_INK, (cx, cy), (cx + sx * (arm + 2), cy), thick + 2)
+        pygame.draw.line(surface, COL_INK, (cx, cy), (cx, cy + sy * (arm + 2)), thick + 2)
+        pygame.draw.line(surface, tint, (cx, cy), (cx + sx * arm, cy), thick)
+        pygame.draw.line(surface, tint, (cx, cy), (cx, cy + sy * arm), thick)
+    ring = pygame.Surface((rect.w + 18, rect.h + 18), pygame.SRCALPHA)
+    pygame.draw.ellipse(ring, (tint[0], tint[1], tint[2], int(120 + 70 * pulse)),
+                        ring.get_rect(), 3)
+    surface.blit(ring, ring.get_rect(center=rect.center))
+
+
+def draw_pulse(surface, cam, station):
+    """Arrow over the machine the guide wants next, clamped into the viewport.
+
+    The kitchen is 320px tall in a 640x320 view, so a crate in the top row has
+    its sprite top *above* the camera: the arrow is pinned to the top edge with
+    a stub instead of being drawn off-screen.
+    """
+    if station is None:
+        return
+    foot = cam.rect(station.foot)
+    busy = (pygame.time.get_ticks() % 760) / 760.0
+    wob = int(math.sin(pygame.time.get_ticks() / 190.0) * 4)
+    top = foot.bottom - station.height * cam.zoom
+    tip_y = max(config.BAR_TOP_H + 46, top - 18 + wob)
+    bob = int(6 * abs(math.sin(pygame.time.get_ticks() / 260.0)))
+    cx = foot.centerx
+    pygame.draw.polygon(surface, COL_INK,
+                        ((cx - 14, tip_y - 24 - bob), (cx + 14, tip_y - 24 - bob),
+                         (cx, tip_y - bob + 2)))
+    pygame.draw.polygon(surface, COL_CYAN,
+                        ((cx - 11, tip_y - 22 - bob), (cx + 11, tip_y - 22 - bob),
+                         (cx, tip_y - 3 - bob)))
+    alpha = int(90 + 90 * (1.0 - busy))
+    halo = pygame.Surface((80, 80), pygame.SRCALPHA)
+    pygame.draw.ellipse(halo, (COL_CYAN[0], COL_CYAN[1], COL_CYAN[2], alpha),
+                        halo.get_rect().inflate(-10, -10), 4)
+    if tip_y > config.BAR_TOP_H + 54:
+        surface.blit(halo, halo.get_rect(center=(cx, tip_y - 2)))
+
+
 def draw_aim(surface, world, cam, ok=True, top=False):
     """Show the tile the cook is aiming at, before anything walks over it.
 
@@ -103,6 +220,8 @@ def draw_aim(surface, world, cam, ok=True, top=False):
     label = textmod.render("F", 13, tint if ok else COL_FOG, True)
     surface.blit(label, label.get_rect(center=cap.center))
 
+
+# -- entities -----------------------------------------------------------
 
 def _blit_entity(surface, cam, entity, alpha):
     sprite = entity.sprite
@@ -199,7 +318,7 @@ def draw_suggestions(surface, cam, world, stations):
         foot = cam.rect(station.foot)
         top = foot.bottom - station.height * cam.zoom
         cx = foot.centerx + 22
-        cy = top - 6
+        cy = max(config.BAR_TOP_H + 30, top - 6)
         radius = 9
         pygame.draw.circle(surface, COL_INK, (cx, cy + 1), radius + 1)
         pygame.draw.circle(surface, COL_AMBER, (cx, cy), radius)
@@ -209,26 +328,6 @@ def draw_suggestions(surface, cam, world, stations):
         surface.blit(mark, mark.get_rect(center=(cx, cy - 1)))
         if pulse > 0.7:
             pygame.draw.circle(surface, COL_AMBER, (cx, cy), radius + 3, 1)
-
-
-def draw_pulse(surface, cam, station):
-    """Soft ring on the machine the guide wants next: findable at a glance."""
-    if station is None:
-        return
-    foot = cam.rect(station.foot)
-    phase = (pygame.time.get_ticks() % 900) / 900.0
-    grow = int(6 + 10 * phase)
-    alpha = int(190 * (1.0 - phase))
-    halo = pygame.Surface((foot.w + grow * 2, foot.h + grow * 2), pygame.SRCALPHA)
-    rect = halo.get_rect()
-    pygame.draw.ellipse(halo, (*COL_CYAN[:3], alpha), rect, 3)
-    surface.blit(halo, halo.get_rect(center=(foot.centerx, foot.bottom - 6)))
-    top = foot.bottom - station.height * cam.zoom
-    pygame.draw.line(surface, COL_CYAN, (foot.centerx, top - 26),
-                     (foot.centerx, top - 6), 3)
-    pygame.draw.polygon(surface, COL_CYAN,
-                        ((foot.centerx - 7, top - 12), (foot.centerx + 7, top - 12),
-                         (foot.centerx, top - 1)))
 
 
 def draw_tosses(surface, world, cam):
@@ -284,16 +383,23 @@ def draw_popups(surface, cam, world):
         surface.blit(out, out.get_rect(midbottom=(cam.sx(popup["x"]), cam.sy(popup["y"]))))
 
 
-def render(surface, world, cam, aim_ok=True, aim=True, suggestions=()):
+def render(surface, world, cam, aim_ok=True, aim=True, suggestions=(),
+           path=None, goal=None, show_path=True):
     reset_fade(world)
     update_fade(world)
     draw_floor(surface, world, cam)
+    if show_path and path:
+        draw_path(surface, world, cam, path)
     if aim:
         draw_aim(surface, world, cam, aim_ok)
     draw_sorted(surface, world, cam)
+    if goal is not None:
+        draw_goal_tile(surface, cam, world, goal)
     if aim:
         draw_aim(surface, world, cam, aim_ok, top=True)
     draw_suggestions(surface, cam, world, suggestions)
     draw_station_state(surface, world, cam)
     draw_player_busy(surface, cam, world)
     draw_tosses(surface, world, cam)
+    if goal is not None:
+        draw_pulse(surface, cam, goal)

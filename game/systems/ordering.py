@@ -44,7 +44,7 @@ class OrderBoard:
         self.queue = []
         self.served = []
         self.failed = []
-        self.next_spawn = 3.0
+        self.next_spawn = 1.5      # one breath to look around, then the bell
         self.spawned = 0
 
     def _interval(self, elapsed):

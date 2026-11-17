@@ -26,7 +26,9 @@
         "swap": true,
         "auto_free_hand": true,
         "reason": true,
-        "mouse": true
+        "mouse": true,
+        "autoface": true,
+        "hold_f": true
       }
     },
     "normal": {
@@ -45,7 +47,9 @@
         "swap": true,
         "auto_free_hand": true,
         "reason": true,
-        "mouse": false
+        "mouse": false,
+        "autoface": true,
+        "hold_f": true
       }
     },
     "hard": {
@@ -64,7 +68,9 @@
         "swap": false,
         "auto_free_hand": false,
         "reason": false,
-        "mouse": false
+        "mouse": false,
+        "autoface": false,
+        "hold_f": false
       }
     }
   }

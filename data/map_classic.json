@@ -1,0 +1,93 @@
+{
+  "name": "第七码头 · 老厨房",
+  "tile": 64,
+  "origin": [
+    96,
+    160
+  ],
+  "legend": {
+    "#": {
+      "kind": "wall"
+    },
+    ".": {
+      "kind": "floor"
+    },
+    "@": {
+      "kind": "spawn"
+    },
+    "r": {
+      "kind": "crate",
+      "item": "rice",
+      "label": "星米箱"
+    },
+    "e": {
+      "kind": "crate",
+      "item": "egg",
+      "label": "星鸡蛋箱"
+    },
+    "*": {
+      "kind": "crate",
+      "item": "stardust",
+      "label": "星尘箱"
+    },
+    "d": {
+      "kind": "crate",
+      "item": "dough",
+      "label": "面团箱"
+    },
+    "m": {
+      "kind": "crate",
+      "item": "meat",
+      "label": "陨石肉箱"
+    },
+    "v": {
+      "kind": "crate",
+      "item": "veg",
+      "label": "氧气菜箱"
+    },
+    "S": {
+      "kind": "station",
+      "type": "steamer",
+      "label": "蒸笼"
+    },
+    "W": {
+      "kind": "station",
+      "type": "wok",
+      "label": "灶台"
+    },
+    "O": {
+      "kind": "station",
+      "type": "oven",
+      "label": "烤炉"
+    },
+    "B": {
+      "kind": "station",
+      "type": "board",
+      "label": "切台"
+    },
+    "A": {
+      "kind": "station",
+      "type": "assemble",
+      "label": "组装台"
+    },
+    "P": {
+      "kind": "station",
+      "type": "serve",
+      "label": "出餐口"
+    },
+    "T": {
+      "kind": "station",
+      "type": "trash",
+      "label": "垃圾桶"
+    }
+  },
+  "rows": [
+    "############",
+    "#re*.dmvS..#",
+    "#....@.....#",
+    "#B.W.O.A.T.#",
+    "#...P......#",
+    "############"
+  ],
+  "notes": "老厨房：料箱在左、设备一字排开、出餐口在下方。想换回来把 core/config.py 的 MAP_FILE 改成 map_classic.json。"
+}
