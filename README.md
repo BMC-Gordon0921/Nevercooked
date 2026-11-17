@@ -29,6 +29,17 @@ python main.py
 
 依赖：Python 3.11+、`pygame-ce` 2.5+（`pip install pygame-ce`）。逻辑分辨率固定 1280×720，按桌面大小自动取整数缩放倍率（像素不会被拉糊）。
 
+### 让 AI 自己打
+
+两个开关把键盘交给 `game/systems/ai.py` 的厨师大脑，开起来就是 AI 在对局里干活（都是 hard，方便两档对比）：
+
+```bash
+python main.py --superai   # 第一档（strong）：满档调度，hard 五个种子均分约 807
+python main.py --ai        # 第二档（relaxed）：慢半拍、会挑错单，hard 均分约 381
+```
+
+两者互斥，同时给会被 argparse 挡下（exit code 2）。接管范围只有对局：标题、结算、设置页仍归玩家，Esc 退出对局就回到自己玩；`MW_FRAMES` 仍可限帧跑无头自测。
+
 ## 操作
 
 | 键 | 作用 |

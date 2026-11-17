@@ -1,6 +1,18 @@
-"""Entry point: one logical 1280x720 surface, integer-scaled to the desktop."""
+"""Entry point: one logical 1280x720 surface, integer-scaled to the desktop.
+
+Two flags hand the keyboard to the chef brain in game/systems/ai.py, so the
+AI tiers can be watched (or recorded) exactly as a player would see them:
+
+  python main.py             you play, from the title screen
+  python main.py --superai   first tier (strong) takes over, round starts at once
+  python main.py --ai        second tier (relaxed) takes over, round starts at once
+
+The two are mutually exclusive; anything that is not a live round (title,
+results, settings) still belongs to the human, so Esc out and keep playing.
+"""
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 
@@ -14,9 +26,15 @@ ime.preload()
 STEP = 1.0 / 60.0
 MAX_STEPS = 5
 
+#: Both flags start the same round, so the two tiers are compared on one
+#: difficulty instead of two.  Hard is the mode the benchmark measures.
+AUTOPILOT_LEVEL = "hard"
+
+PROFILES = {"superai": "strong", "ai": "relaxed"}
+
 
 class App:
-    def __init__(self):
+    def __init__(self, autopilot=None):
         pygame.init()
         audio.init()
         pygame.display.set_caption("欢闹厨房！  Nevercooked!")
@@ -27,8 +45,17 @@ class App:
         ime.suppress()
         self.logical = pygame.Surface((config.SCREEN_W, config.SCREEN_H)).convert()
         self.running = True
-        from scenes.title import TitleScene
-        self.scene = TitleScene(self)
+        self.autopilot = autopilot
+        self._brain = None
+        self._brain_scene = None
+        if autopilot:
+            from scenes.game import GameScene
+            self.difficulty = AUTOPILOT_LEVEL
+            self.scene = GameScene(self, AUTOPILOT_LEVEL)
+            print("[AI] %s profile is playing this round (%s)" % (autopilot, AUTOPILOT_LEVEL))
+        else:
+            from scenes.title import TitleScene
+            self.scene = TitleScene(self)
 
     @staticmethod
     def _pick_scale():
@@ -42,6 +69,23 @@ class App:
 
     def switch(self, scene):
         self.scene = scene
+
+    def autopilot_intent(self):
+        """The brain's Intent for this step, or None while a human is playing.
+
+        A fresh brain is built for every round, so a restart from the results
+        screen does not inherit the previous round's missions.
+        """
+        if not self.autopilot:
+            return None
+        scene = self.scene
+        if getattr(scene, "world", None) is None:
+            return None
+        if self._brain_scene is not scene:
+            from game.systems.ai import Brain
+            self._brain = Brain(self.autopilot)
+            self._brain_scene = scene
+        return self._brain.think(scene)
 
     def present(self):
         if self.scale == 1:
@@ -72,7 +116,8 @@ class App:
             steps = 0
             pending = intent
             while accumulator >= STEP and steps < MAX_STEPS:
-                self.scene.update(STEP, pending)
+                auto = self.autopilot_intent()
+                self.scene.update(STEP, pending if auto is None else auto)
                 pending.clear_edges()
                 pending = Intent()
                 accumulator -= STEP
@@ -83,8 +128,27 @@ class App:
         pygame.quit()
 
 
+def parse_args(argv=None):
+    """--superai and --ai are alternatives: one chef, one brain."""
+    parser = argparse.ArgumentParser(
+        prog="main.py",
+        description="欢闹厨房！ Nevercooked! 不带参数时进标题界面自己玩。")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--superai", action="store_true",
+                       help="第一档 AI（strong）接管玩家行动，直接开局")
+    group.add_argument("--ai", action="store_true",
+                       help="第二档 AI（relaxed）接管玩家行动，直接开局")
+    return parser.parse_args(argv)
+
+
 def main(argv=None):
-    app = App()
+    args = parse_args(argv)
+    autopilot = None
+    if args.superai:
+        autopilot = PROFILES["superai"]
+    elif args.ai:
+        autopilot = PROFILES["ai"]
+    app = App(autopilot)
     app.run()
     return 0
 
