@@ -12,6 +12,22 @@ row per round, then the verdict:
   "comfortably S rank" (420) with room to spare; STRONG_GOAL is printed so a
   regression towards it stays visible.
 
+Two ways of buying the missing stars were measured and rejected, so nobody
+has to rediscover them:
+
+  throwing    Let the brain hand items over at arm's length (throwing.throw
+              is F with a 1.5 tile reach). Over five seeds it cut walking 15%
+              (19.4k -> 16.4k px) and hand-held time 16% -> 11%, and served
+              the same tickets: 767 mean against 807, because the kitchen is
+              machine-bound, not walk-bound, and a delivery that lands one
+              second sooner can slip out of the 2x rush window that opens at
+              165 s.
+
+  banking     Hold the last delivery before 165 s so it pays the 2x rush
+              multiplier. Worth +10 mean (807 -> 817 at a 4 s hold, 823 at
+              8 s) and it loses a ticket on two of five seeds - the dish is
+              parked in the hand while a fresher one waits.
+
   python tests/ai.py                 # the real thing, 5 seeds, both profiles
   python tests/ai.py --seeds 1 --profiles strong
   python tests/ai.py --duration 60   # short runs while tuning
