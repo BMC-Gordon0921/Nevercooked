@@ -1,8 +1,8 @@
 """Pixel-font engine: a 12px bitmap atlas drawn at integer scales, never smooth.
 
 The atlas (assets/font/pixel12.png + .json) is baked by tools/font/bake_atlas.py
-from SimSun's embedded 12px bitmap strike with antialiasing off, so every glyph
-is a hard 1-bit mask.  This module is the only thing that reads it:
+from Fusion Pixel 12px (SIL OFL 1.1) with antialiasing off, so every glyph is a
+hard 1-bit mask.  This module is the only thing that reads it:
 
     ready()                     -> True once the atlas is loaded (never raises)
     covers(text)                -> True when every char in text has a glyph
@@ -143,9 +143,9 @@ def line_height(scale=1):
 # which keeps the snapping consistent across HUD, menus and the title wordmark.
 SCALE_RULE = "table"      # "table" (snap bands) or "nearest" (round(size/base))
 # Upper bound -> scale.  The bounds are *nominal layout sizes*, not pixels: body
-# copy is authored 12-19 and stays at 1x, whatever strike the atlas holds (Cubic
-# 11 ships at 11px, Ark Pixel at 12px), so swapping the face never re-lays-out a
-# screen.  Only the wordmark band reaches 7x.
+# copy is authored 12-19 and stays at 1x, whatever strike the atlas holds
+# (Fusion Pixel ships at 12px, Cubic 11 at 11px), so swapping the face never
+# re-lays-out a screen.  Only the wordmark band reaches 7x.
 # There is no 4x band on purpose: 60-79 snaps to 5x so rising sizes never step
 # backwards in apparent weight.
 SCALE_BANDS = ((19, 1), (33, 2), (59, 3), (79, 5))

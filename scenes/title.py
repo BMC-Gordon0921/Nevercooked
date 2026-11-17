@@ -23,7 +23,7 @@ SHADOW = (66, 52, 38)
 CHIP_W, CHIP_H, CHIP_GAP = 196, 78, 18
 
 
-_WORD_SCALE = 6          # 6x the 12px strike: a 72px wordmark
+_WORD_SCALE = 7          # 7x the 12px strike: an 84px wordmark
 
 
 def _wordmark(parts, scale, *colors, gap=1):
@@ -38,7 +38,15 @@ def _wordmark(parts, scale, *colors, gap=1):
     glyphs = []
     for part, color in zip(parts, colors):
         for ch in part:
-            glyphs.append(pixelfont.render(ch, scale, color))
+            raw = pixelfont.render(ch, scale, color)
+            # Trim the side bearings only: a punctuation glyph is inked in the
+            # middle of its cell, so keeping the cell would park the "！" a whole
+            # em away from the character before it.  Height stays the cell's so
+            # every glyph keeps the same baseline.
+            ink = raw.get_bounding_rect()
+            if ink.width:
+                raw = raw.subsurface(pygame.Rect(ink.x, 0, ink.width, raw.get_height())).copy()
+            glyphs.append(raw)
     step = max(0, int(gap)) * scale
     width = sum(g.get_width() for g in glyphs) + step * max(0, len(glyphs) - 1)
     height = max(g.get_height() for g in glyphs)
@@ -203,7 +211,7 @@ class TitleScene:
         # sets too tight and goes to mush; glyph-by-glyph keeps even air between
         # the letters at any strike size.
         stamp = _wordmark(("欢闹厨房", "！"), _WORD_SCALE, COL_FLAME, COL_TEAL)
-        surface.blit(stamp, (cx - stamp.get_width() // 2, 186))
+        surface.blit(stamp, (cx - stamp.get_width() // 2, 178))
         textmod.shadow_text(surface, "N E V E R C O O K E D !", (cx, 284),
                             size=22, color=COL_STEEL, bold=True, anchor="center",
                             shadow=(255, 255, 255))

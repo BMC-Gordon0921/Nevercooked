@@ -1,10 +1,12 @@
 """Bake assets/font/pixel12.png from a designed pixel font, antialias OFF.
 
 The atlas is a grid of fixed cells holding hard 1-bit white glyphs on a
-transparent background.  The shipped face is Cubic 11 (SIL OFL 1.1): a hand
-drawn 11px pixel typeface, so pygame.font.Font(path, 11).render(text, False,
-color) is already hard pixels with no hinting to fight.  Ark Pixel 12px (also
-OFL) sits beside it and lends the few glyphs Cubic does not carry.
+transparent background.  The shipped face is Fusion Pixel 12px (Sil OFL 1.1),
+a sans ("黑体") pixel typeface stitched from Ark Pixel plus matching mates, so
+pygame.font.Font(path, 12).render(text, False, color) is already hard pixels
+with no hinting to fight - and unlike Cubic 11 its strokes are evenly weighted,
+which is what a 12px UI needs.  Ark Pixel 12px (also OFL) sits beside it and
+lends the few glyphs Fusion does not carry.
 
 The charset is what the game actually writes - every CJK character inside a
 string literal under core/ game/ scenes/ tests/ tools/ and inside data/*.json -
@@ -13,9 +15,10 @@ are appended as a safety net so a new Chinese string still renders as pixels
 instead of falling back to the TTF rasteriser.
 
 Usage (from the repo root):
-    python tools/font/bake_atlas.py              # Cubic 11 + GB2312 level 1
+    python tools/font/bake_atlas.py              # Fusion Pixel 12px + GB2312 level 1
     python tools/font/bake_atlas.py --corpus-only    # only what the code uses
     python tools/font/bake_atlas.py --all-gb2312     # + level-2 hanzi
+    python tools/font/bake_atlas.py --font cubic     # thinner 11px face
     python tools/font/bake_atlas.py --font ark       # the OFL fallback face
     python tools/font/bake_atlas.py --font simsun    # ugly, but it has every char
 
@@ -39,9 +42,11 @@ OUT_DIR = os.path.join(ROOT, "assets", "font")
 
 SRC_DIR = os.path.join(OUT_DIR, "src")
 FONTS = {
-    # The shipped face: Cubic 11, a designed 11px pixel typeface under SIL OFL
-    # 1.1 (assets/font/src/OFL-Cubic-11.txt).  Clean strokes, honest digits, and
-    # every character the game writes.
+    # The shipped face: Fusion Pixel 12px proportional, zh-Hans flavour, under
+    # SIL OFL 1.1 (assets/font/src/OFL-FusionPixel.txt).  Sans strokes of even
+    # weight, balanced baseline, and full GB2312 as the base face.
+    "fusion": (os.path.join(SRC_DIR, "fusion-pixel-12px-proportional-zh_hans.ttf"), 12),
+    # The previous face: Cubic 11, also OFL.  Thinner, more calligraphic strokes.
     "cubic": (os.path.join(SRC_DIR, "Cubic_11.ttf"), 11),
     # The lender: Ark Pixel 12px, also OFL.  Covers a different slice of the
     # rare hanzi, so the two faces together reach GB2312 without a system font.
@@ -316,7 +321,7 @@ def _atlas_surface(cells, order, cell_w, cell_h, cols):
     return surf, rows, cols, positions
 
 
-def bake(font_key="cubic", root=ROOT, out_dir=OUT_DIR, cols=32, quiet=False,
+def bake(font_key="fusion", root=ROOT, out_dir=OUT_DIR, cols=32, quiet=False,
          gb_levels=(1,), font_path=None, font_size=None):
     path, size = FONTS.get(font_key) or (font_key, 12)
     if font_path:
@@ -434,7 +439,7 @@ def bake(font_key="cubic", root=ROOT, out_dir=OUT_DIR, cols=32, quiet=False,
 def main(argv=None):
     _safe_console()
     parser = argparse.ArgumentParser(description="Bake the 12px pixel font atlas.")
-    parser.add_argument("--font", default="cubic",
+    parser.add_argument("--font", default="fusion",
                         help="font key (%s) or a .ttf/.ttc path" % ", ".join(sorted(FONTS)))
     parser.add_argument("--size", type=int, default=None,
                         help="strike size in px (default: whatever the face is designed for)")

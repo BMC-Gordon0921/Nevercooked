@@ -91,17 +91,17 @@ python main.py
 
 ↑↓ 选行、←→ 调整（音量 ±5%）、Enter / Esc 返回。设置界面会记住上一次的位置，下一局 `on_resume()` 重新读一遍，所以中途改完立刻能感觉到。
 
-### 像素字体（Cubic 11）
+### 像素字体（缝合像素字体 / Fusion Pixel 12px）
 
-界面上的字全部来自一张现烤的位图字集，不是系统字体缩放。
+界面上的字全部来自一张现烤的位图字集，不是系统字体缩放，也没有灰边。
 
-- 字源：**Cubic 11**（SIL OFL 1.1，可商用、可随软件分发；`assets/font/src/Cubic_11.ttf` + `OFL-Cubic-11.txt`）。母版是手绘的 11px 点阵字，关锯齿直接烘，边缘是硬的 1-bit 像素。
-- `assets/font/pixel12.png`（+ `_bold.png` / `.json`）：32 列 × 122 行、每格 13×13、共 3874 个字形，收的是代码与 `data/*.json` 里真正出现过的 377 个字，外加 GB2312 一级字兜底。
-- `core/pixelfont.py` 只做整数倍放大（1×–7×，即 11 / 22 / 33 / 55 / 77px）。档位按**排版字号**分：≤19 → 1×、≤33 → 2×、≤59 → 3×、≤79 → 5×、更高 7×——所以换字源、换母版字号，界面不会重排。字距按 1px 补在相邻两个全宽字之间（CJK 才不会挤成一坨）。
-- 标题 wordmark 用同一套字逐字排（6× = 66px），不描边、不投影：6× 下一个像素就是 6 个屏幕像素，任何偏移都会横穿半根笔画、把字糊成泥。
+- 字源：**缝合像素字体 12px 比例模式（简体字形）**，SIL OFL 1.1，可商用、可随软件分发——`assets/font/src/fusion-pixel-12px-proportional-zh_hans.ttf` + `OFL-FusionPixel.txt`。它是「方舟像素字体」的过渡方案，以方舟为基础、用同尺寸字体补齐字形，笔画粗细均匀，正是 12px 黑体 UI 需要的。
+- `assets/font/pixel12.png`（+ `_bold.png` / `.json`）：32 列 × 122 行、每格 12×12、共 3874 个字形；收的是代码与 `data/*.json` 里真正出现过的每个字（构建时扫描 `core/ game/ scenes/ tools/` 与 `main.py`），外加 GB2312 一级字兜底。
+- `core/pixelfont.py` 只做整数倍放大（1×–7×，即 12 / 24 / 36 / 60 / 84px）。档位按**排版字号**分：≤19 → 1×、≤33 → 2×、≤59 → 3×、≤79 → 5×、更高 7×——换字源、换母版字号，界面布局不会重排。2× 以上在相邻两个全宽字之间补 1px 字距，CJK 才不会糊成一片;1× 靠字体自带边距。
+- 标题 wordmark 逐字排（7× = 84px），不描边、不投影：7× 下一个点阵像素就是 7 个屏幕像素，任何偏移都会横穿半根笔画、把字糊成泥。排版时会裁掉每个字的左右边距，否则 `！` 这种墨迹居中的标点会被留出一整格空白。
 - `core/text.py` 的对外接口（`render` / `shadow_text` / `font`）没变，字集里查不到的字自动回退系统 TTF，不会出现方块。
-- 换字源 / 补字：`python tools/font/bake_atlas.py`（默认就是 Cubic 11；`--font ark` 换 Ark Pixel 12px、`--font simsun` 换宋体、`--corpus-only` 只烘用到的字）。缺字会被认成 `.notdef` 方块，并向 `assets/font/src/ArkPixel-12px-proportional-zh_hans.ttf`（同样 OFL）借字形，两边都没有的才进 `undrawable` 报出来。
-- 为什么不是 Zpix：覆盖率最好，但授权只给教育/个人免费，商用要付费且禁止再分发，公开仓库不能打包。Ark Pixel 12px 是 OFL，但缺 即 / 斜 / 窗 / 紧 / 餐 这类常用字，所以只当借字方。
+- 换字源 / 补字：`python tools/font/bake_atlas.py`（默认就是 Fusion Pixel；`--font cubic` 换成更细的 Cubic 11、`--font ark` 换成方舟像素、`--font simsun` 换成宋体、`--corpus-only` 只烘用到的字）。缺字会被认成 `.notdef` 方块，并向 `ArkPixel-12px-proportional-zh_hans.ttf`（同样 OFL）借字形，两边都没有的才进 `undrawable` 报出来。
+- 为什么不是 Zpix：覆盖率最好，但授权只给教育/个人免费，商用要付费且禁止再分发，公开仓库不能打包。方舟像素 12px 虽是 OFL，但缺 即 / 斜 / 窗 / 紧 / 餐 这类常用字，所以它只当借字方。
 
 ### 难度
 
@@ -177,9 +177,9 @@ data/              tuning / palette / stations / ingredients / dishes / ai.json 
 tools/pixel/       pxlib + make_tiles / make_art / make_stations / make_chef（资产生成脚本）
 tools/audio/       make_sfx.py 音效合成 + wavio
 tools/map_preview.py  地图预览图
-tools/font/        bake_atlas.py（把 Cubic 11 烘成字图集）+ sheet.py（样张）
+tools/font/        bake_atlas.py（把 Fusion Pixel 烘成字图集）+ sheet.py（样张）
 assets/font/       pixel12.png / pixel12_bold.png / pixel12.json（3874 个字形）
-assets/font/src/   Cubic_11.ttf + ArkPixel-12px…ttf 和两份 OFL 许可（字源，可重烘）
+assets/font/src/   fusion-pixel-12px…ttf + Cubic_11.ttf + ArkPixel-12px…ttf 与三份 OFL 许可（可重烘）
 tests/             见下
 ```
 
