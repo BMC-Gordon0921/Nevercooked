@@ -126,8 +126,8 @@ class SettingsScene:
         # the state word sits on the free side of the pill, never inside the knob
         word_x = box.x + 26 if on else box.right - 26
         textmod.shadow_text(surface, "开" if on else "关", (word_x, box.centery + 1),
-                            size=13, color=COL_INK if on else COL_SILVER,
-                            bold=True, anchor="center")
+                            size=13, color=COL_CYAN if on else COL_SILVER,
+                            anchor="center")
 
     def draw(self, surface):
         self._sky(surface)
@@ -142,7 +142,7 @@ class SettingsScene:
         pygame.draw.rect(surface, COL_SLATE, card, 2, border_radius=14)
 
         textmod.shadow_text(surface, "设置", (cx, card.y + 34), size=34,
-                            color=COL_WHITE, bold=True, anchor="center")
+                            color=COL_WHITE, anchor="center")
         textmod.shadow_text(surface, "改动即时生效，自动保存到 profile.json",
                             (cx, card.y + 62), size=13, color=COL_FOG, anchor="center")
 
@@ -153,10 +153,12 @@ class SettingsScene:
             chosen = i == self.index
             if chosen:
                 pygame.draw.rect(surface, COL_CYAN, row.inflate(8, 8), 2, border_radius=10)
-                tag = textmod.render("▶", 14, COL_CYAN, True)
-                surface.blit(tag, tag.get_rect(midleft=(row.x - 20, row.centery)))
+                tip = (row.x - 20, row.centery)
+                pygame.draw.polygon(surface, COL_CYAN, ((tip[0] - 6, tip[1] - 7),
+                                                        (tip[0] - 6, tip[1] + 7),
+                                                        (tip[0] + 6, tip[1])))
             textmod.shadow_text(surface, label, (row.x + 8, row.centery - 8), size=19,
-                                color=COL_WHITE if chosen else COL_SILVER, bold=chosen,
+                                color=COL_WHITE if chosen else COL_SILVER,
                                 anchor="midleft")
             if key == "path":
                 on = bool(self.settings["path"])

@@ -42,7 +42,7 @@ def contact_sheet(path):
     cols, cell = 48, 12
     rows = (len(chars) + cols - 1) // cols
     pad, block_top = 16, rows * cell + 40
-    samples = ["欢闹厨房！", "NEVERCOOKED", "★ 128 x1.4", "碗底港·第七码头", "F 交互 ▶ 设置"]
+    samples = ["欢闹厨房！", "NEVERCOOKED", "★ 128 x1.4", "碗底港·第七码头", "F 交互 ▲ 设置"]
     sample_h = 3 * 12 * len(samples) + 20 * len(samples)
     width = max(cols * cell + 2 * pad, 760)
     height = block_top + sample_h + 3 * 12 + 40
@@ -137,7 +137,7 @@ def ui_preview(path):
                                                ("路径指示", "在厨房地面上画出通往下一站的粗箭头"))):
         chosen = index == 0
         if chosen:
-            tag = text.render("▶", 14, cyan, True)
+            tag = text.render("▲", 14, cyan, True)
             surf.blit(tag, tag.get_rect(midleft=(96, y)))
         text.shadow_text(surf, label_text, (140, y - 8), size=19, color=white if chosen else steel,
                          bold=chosen, anchor="midleft")

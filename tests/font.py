@@ -119,8 +119,11 @@ def main():
     w84 = text.render(word, 84).get_width()
     check("84px width scales 12px + CJK tracking", w84 == expected(word, 7),
           "%d vs %d" % (w84, expected(word, 7)))
-    check("84px height == 84", text.render(word, 84).get_height() == 84,
-          str(text.render(word, 84).get_height()))
+    # The strike is whatever the atlas holds (Ark Pixel 12px sits 13 rows tall
+    # once the descender row is counted), so height is 7 x the strike, not 84.
+    strike_h = pixelfont.measure("国", 1)[1]
+    check("84px height == 7 x strike", text.render(word, 84).get_height() == strike_h * 7,
+          "%d vs %d" % (text.render(word, 84).get_height(), strike_h * 7))
     w24 = text.render(word, 20).get_width()
     check("20px renders at 2x plus tracking", w24 == expected(word, 2),
           "%d vs %d" % (w24, expected(word, 2)))

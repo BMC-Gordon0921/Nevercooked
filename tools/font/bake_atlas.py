@@ -1,9 +1,10 @@
-"""Bake assets/font/pixel12.png from a 12px system font, antialias OFF.
+"""Bake assets/font/pixel12.png from a designed pixel font, antialias OFF.
 
 The atlas is a grid of fixed cells holding hard 1-bit white glyphs on a
-transparent background.  SimSun's embedded 12px bitmap strike is the source:
-pygame.font.Font(path, 12).render(text, False, color) produces a monochrome
-(colorkey) surface whose pixels are only 0 or 255, i.e. authentic pixel type.
+transparent background.  The shipped face is Cubic 11 (SIL OFL 1.1): a hand
+drawn 11px pixel typeface, so pygame.font.Font(path, 11).render(text, False,
+color) is already hard pixels with no hinting to fight.  Ark Pixel 12px (also
+OFL) sits beside it and lends the few glyphs Cubic does not carry.
 
 The charset is what the game actually writes - every CJK character inside a
 string literal under core/ game/ scenes/ tests/ tools/ and inside data/*.json -
@@ -12,10 +13,11 @@ are appended as a safety net so a new Chinese string still renders as pixels
 instead of falling back to the TTF rasteriser.
 
 Usage (from the repo root):
-    python tools/font/bake_atlas.py              # SimSun 12px + GB2312 level 1
+    python tools/font/bake_atlas.py              # Cubic 11 + GB2312 level 1
     python tools/font/bake_atlas.py --corpus-only    # only what the code uses
     python tools/font/bake_atlas.py --all-gb2312     # + level-2 hanzi
-    python tools/font/bake_atlas.py --font noto      # OFL fallback face
+    python tools/font/bake_atlas.py --font ark       # the OFL fallback face
+    python tools/font/bake_atlas.py --font simsun    # ugly, but it has every char
 
 Outputs:
     assets/font/pixel12.png / pixel12_bold.png  (white glyphs, alpha 0/255)
@@ -35,12 +37,26 @@ import pygame
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT_DIR = os.path.join(ROOT, "assets", "font")
 
+SRC_DIR = os.path.join(OUT_DIR, "src")
 FONTS = {
+    # The shipped face: Cubic 11, a designed 11px pixel typeface under SIL OFL
+    # 1.1 (assets/font/src/OFL-Cubic-11.txt).  Clean strokes, honest digits, and
+    # every character the game writes.
+    "cubic": (os.path.join(SRC_DIR, "Cubic_11.ttf"), 11),
+    # The lender: Ark Pixel 12px, also OFL.  Covers a different slice of the
+    # rare hanzi, so the two faces together reach GB2312 without a system font.
+    "ark": (os.path.join(SRC_DIR, "ArkPixel-12px-proportional-zh_hans.ttf"), 12),
     "simsun": (r"C:\Windows\Fonts\simsun.ttc", 12),
     "noto": (r"C:\Windows\Fonts\NotoSansSC-VF.ttf", 12),
 }
-# Faces tried in order for a character the primary face draws blank at 12px.
-SECONDARY = "noto"
+# A glyph the primary face cannot draw borrows one from here rather than
+# becoming a smooth TTF fallback at runtime.
+SECONDARY = "ark"
+
+# Characters no face carries: whatever they render as *is* the .notdef box.
+# Two of them agreeing on the same bits is how a missing glyph is identified -
+# a lone probe could be a real glyph that happens to live there.
+_NOTDEF_PROBES = ("\ue000", "\ue001", "\uffff", "\ue123")
 
 # Extra symbols the game/UI writes but that the ASCII range does not cover.
 EXTRA_SYMBOLS = "★·！？，。：…→×①②③"
@@ -189,6 +205,28 @@ def _mask_of(surface):
     return rgb[:, :, 0] > 0
 
 
+def _shown_path(path, root):
+    """Relative to the repo when it lives there, absolute otherwise."""
+    try:
+        return os.path.relpath(path, root)
+    except ValueError:
+        return path
+
+
+def _render_mask(font, ch):
+    """(mask, advance) for one char; a blank/zero-width glyph comes back empty.
+
+    Some pixel faces (Zpix) answer 'Text has zero width' instead of rendering a
+    blank for a space or a symbol they do not carry, so the mask cannot be
+    assumed to exist.
+    """
+    try:
+        surf = font.render(ch, False, (255, 255, 255))
+    except pygame.error:
+        return np.zeros((1, 1), bool), 0
+    return _mask_of(surf), None
+
+
 def measure_font(font, chars):
     """Per-char (mask, adv) plus the tight vertical band the whole face needs.
 
@@ -199,10 +237,9 @@ def measure_font(font, chars):
     masks, advs = {}, {}
     y_min, y_max, x_max = 10 ** 6, -1, 0
     for ch in chars:
-        surf = font.render(ch, False, (255, 255, 255))
-        mask = _mask_of(surf)
+        mask, adv = _render_mask(font, ch)
         masks[ch] = mask
-        advs[ch] = font.size(ch)[0]
+        advs[ch] = adv if adv is not None else font.size(ch)[0]
         xi, yi = np.nonzero(mask)
         if yi.size:
             y_min = min(y_min, int(yi.min()))
@@ -212,6 +249,24 @@ def measure_font(font, chars):
     if y_max < 0:
         raise RuntimeError("font rendered nothing at all")
     return masks, advs, y_min, y_max, x_max
+
+
+def _notdef_signatures(font):
+    """Bit patterns this face draws for characters it does not carry."""
+    seen = {}
+    for ch in _NOTDEF_PROBES:
+        mask, _ = _render_mask(font, ch)
+        if mask.any():
+            seen.setdefault((mask.shape, mask.tobytes()), 0)
+            seen[(mask.shape, mask.tobytes())] += 1
+    return {key for key, count in seen.items() if count > 1}
+
+
+def _undrawable(mask, refs):
+    """True for a blank cell *and* for the .notdef box a face substitutes."""
+    if not mask.any():
+        return True
+    return (mask.shape, mask.tobytes()) in refs
 
 
 def _secondary_glyph(font, ch, band, cell_w, cell_h):
@@ -261,9 +316,13 @@ def _atlas_surface(cells, order, cell_w, cell_h, cols):
     return surf, rows, cols, positions
 
 
-def bake(font_key="simsun", root=ROOT, out_dir=OUT_DIR, cols=32, quiet=False,
-         gb_levels=(1,)):
-    path, size = FONTS[font_key]
+def bake(font_key="cubic", root=ROOT, out_dir=OUT_DIR, cols=32, quiet=False,
+         gb_levels=(1,), font_path=None, font_size=None):
+    path, size = FONTS.get(font_key) or (font_key, 12)
+    if font_path:
+        path = font_path
+    if font_size:
+        size = int(font_size)
     if not os.path.exists(path):
         raise SystemExit("font not found: %s" % path)
     pygame.init()
@@ -275,18 +334,22 @@ def bake(font_key="simsun", root=ROOT, out_dir=OUT_DIR, cols=32, quiet=False,
     cell_w, cell_h = int(x_max), int(y_max - y_min + 1)
     band = int(y_min)
 
-    # A glyph the strike cannot draw (some dingbats are blank at 12px) borrows a
-    # glyph from the secondary face rather than becoming a TTF fallback later.
+    # A glyph the strike cannot draw - blank, or the .notdef box a face shows for
+    # characters outside its coverage - borrows a glyph from the secondary face
+    # rather than becoming a TTF fallback later.
     fallback = {}
-    empties = [ch for ch in charset if ch.strip() and not masks[ch].any()]
+    refs = _notdef_signatures(font)
+    empties = [ch for ch in charset if ch.strip() and _undrawable(masks[ch], refs)]
     if empties:
-        sec_path = FONTS.get(SECONDARY, (None, 12))[0]
-        secondary = pygame.font.Font(sec_path, size) if sec_path and os.path.exists(sec_path) else None
+        lender = SECONDARY if SECONDARY != font_key else ("simsun" if font_key == "ark" else "ark")
+        sec_path, sec_size = FONTS.get(lender, (None, size))
+        secondary = (pygame.font.Font(sec_path, sec_size or size)
+                     if sec_path and os.path.exists(sec_path) else None)
         for ch in list(empties):
             got = _secondary_glyph(secondary, ch, band, cell_w, cell_h)
             if got is not None:
                 masks[ch], advs[ch] = got
-                fallback[ch] = SECONDARY
+                fallback[ch] = lender
                 empties.remove(ch)
     chars = [ch for ch in charset if ch not in set(empties)]
 
@@ -318,7 +381,7 @@ def bake(font_key="simsun", root=ROOT, out_dir=OUT_DIR, cols=32, quiet=False,
 
     doc = {
         "family": font_key,
-        "source": path,
+        "source": _shown_path(path, root),
         "size": size,
         "antialias": False,
         "cell": cell_w,
@@ -371,8 +434,10 @@ def bake(font_key="simsun", root=ROOT, out_dir=OUT_DIR, cols=32, quiet=False,
 def main(argv=None):
     _safe_console()
     parser = argparse.ArgumentParser(description="Bake the 12px pixel font atlas.")
-    parser.add_argument("--font", choices=sorted(FONTS), default="simsun",
-                        help="system font to rasterise (default: simsun)")
+    parser.add_argument("--font", default="cubic",
+                        help="font key (%s) or a .ttf/.ttc path" % ", ".join(sorted(FONTS)))
+    parser.add_argument("--size", type=int, default=None,
+                        help="strike size in px (default: whatever the face is designed for)")
     parser.add_argument("--cols", type=int, default=32, help="atlas columns")
     parser.add_argument("--corpus-only", action="store_true",
                         help="bake only the characters the code actually uses")
@@ -385,7 +450,7 @@ def main(argv=None):
         levels = (1, 2)
     else:
         levels = (1,)
-    bake(args.font, cols=args.cols, gb_levels=levels)
+    bake(args.font, cols=args.cols, gb_levels=levels, font_size=args.size)
     return 0
 
 

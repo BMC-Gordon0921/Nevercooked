@@ -23,6 +23,33 @@ SHADOW = (66, 52, 38)
 CHIP_W, CHIP_H, CHIP_GAP = 196, 78, 18
 
 
+_WORD_SCALE = 6          # 6x the 12px strike: a 72px wordmark
+
+
+def _wordmark(parts, scale, *colors, gap=1):
+    """The title lockup: pixel glyphs laid out by hand, one flat colour per part.
+
+    No outline and no drop shadow: at 6x a single strike pixel is 6 screen
+    pixels, so any offset smears across half a stroke and the glyph turns to
+    mud.  Flat colour keeps the pixel grid honest, which is what the font is
+    for.
+    """
+    from core import pixelfont
+    glyphs = []
+    for part, color in zip(parts, colors):
+        for ch in part:
+            glyphs.append(pixelfont.render(ch, scale, color))
+    step = max(0, int(gap)) * scale
+    width = sum(g.get_width() for g in glyphs) + step * max(0, len(glyphs) - 1)
+    height = max(g.get_height() for g in glyphs)
+    out = pygame.Surface((width, height), pygame.SRCALPHA)
+    x = 0
+    for glyph in glyphs:
+        out.blit(glyph, (x, 0))
+        x += glyph.get_width() + step
+    return out
+
+
 class TitleScene:
     def __init__(self, app):
         self.app = app
@@ -171,19 +198,12 @@ class TitleScene:
         self._floor_strip(surface)
 
         cx = config.SCREEN_W // 2
-        # Wordmark: four characters in fire red, the exclamation in neon teal.
-        # The two halves are centred as one block, so the bang keeps its weight
-        # without drifting off the optical centre.
-        head = "欢闹厨房"
-        bang = "！"
-        w_head = textmod.render(head, 84, COL_FLAME, bold=True).get_width()
-        w_bang = textmod.render(bang, 84, COL_TEAL, bold=True).get_width()
-        x_head = cx - (w_head + w_bang) // 2 + w_head // 2
-        x_bang = cx + (w_head + w_bang) // 2 - w_bang // 2
-        textmod.shadow_text(surface, head, (x_head, 218), size=84, color=COL_FLAME,
-                            bold=True, anchor="center", shadow=SHADOW)
-        textmod.shadow_text(surface, bang, (x_bang, 218), size=84, color=COL_TEAL,
-                            bold=True, anchor="center", shadow=SHADOW)
+        # Wordmark: four characters in fire red, the exclamation in neon teal,
+        # drawn one glyph at a time. A single 84px string of a 12px pixel face
+        # sets too tight and goes to mush; glyph-by-glyph keeps even air between
+        # the letters at any strike size.
+        stamp = _wordmark(("欢闹厨房", "！"), _WORD_SCALE, COL_FLAME, COL_TEAL)
+        surface.blit(stamp, (cx - stamp.get_width() // 2, 186))
         textmod.shadow_text(surface, "N E V E R C O O K E D !", (cx, 284),
                             size=22, color=COL_STEEL, bold=True, anchor="center",
                             shadow=(255, 255, 255))

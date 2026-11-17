@@ -141,24 +141,36 @@ def line_height(scale=1):
 # A layout size is intent, not pixel truth: there is no 15px strike, so a 15px
 # label becomes 24px type.  This table is the single place that decision lives,
 # which keeps the snapping consistent across HUD, menus and the title wordmark.
-SCALE_RULE = "table"      # "table" (snap bands) or "nearest" (round(size/12))
-# Upper bound -> scale.  Body copy is authored 12-19 and stays at the 12px
-# strike; only the wordmark band reaches 84px.  There is no 4x band on purpose:
-# 60-79 snaps to 60px so rising sizes never step backwards in apparent weight.
+SCALE_RULE = "table"      # "table" (snap bands) or "nearest" (round(size/base))
+# Upper bound -> scale.  The bounds are *nominal layout sizes*, not pixels: body
+# copy is authored 12-19 and stays at 1x, whatever strike the atlas holds (Cubic
+# 11 ships at 11px, Ark Pixel at 12px), so swapping the face never re-lays-out a
+# screen.  Only the wordmark band reaches 7x.
+# There is no 4x band on purpose: 60-79 snaps to 5x so rising sizes never step
+# backwards in apparent weight.
 SCALE_BANDS = ((19, 1), (33, 2), (59, 3), (79, 5))
 SCALE_TOP = 7             # 80 and up: the 84px title wordmark
+BAND_BASE = 12            # reference strike, for scale_for(rule="nearest")
+BOLD_MAX_SCALE = 2        # bold is honest at 1x-2x; from 3x it fills ideographs in
+
+
+def _bands():
+    """The size->scale table; kept as a function so callers can introspect it."""
+    return SCALE_BANDS
 
 
 def scale_for(size, rule=None):
-    """Integer scale factor for a layout size (1x = 12px ... 7x = 84px)."""
+    """Integer scale factor for a layout size (1x = one strike, 7x = 7 strikes)."""
     rule = rule or SCALE_RULE
     try:
         size = float(size)
     except (TypeError, ValueError):
         return 1
+    _load()
+    base = float(_state["base"] if _state["ok"] else BAND_BASE) or 12.0
     if rule == "nearest":
-        return max(1, min(7, int(round(size / 12.0))))
-    for limit, factor in SCALE_BANDS:
+        return max(1, min(SCALE_TOP, int(round(size / base))))
+    for limit, factor in _bands():
         if size <= limit:
             return factor
     return SCALE_TOP
@@ -229,19 +241,56 @@ def _gaps(text, table, extra):
                if _wide(a, table) and _wide(b, table))
 
 
-def _advance(text, table, extra):
-    if not text:
-        return 0
-    return sum(_adv(ch, table) for ch in text) + extra * _gaps(text, table, extra)
+def _faces(bold):
+    """(regular, bold) as (table, atlas, cell_w, cell_h); bold may equal regular."""
+    _load()
+    regular = (_state["glyphs"], _state["atlas"], _state["cell"][0], _state["cell"][1])
+    if bold and _state["bold_glyphs"] and _state["bold_atlas"] is not None:
+        meta = _state["meta"].get("bold") or {}
+        strong = (_state["bold_glyphs"], _state["bold_atlas"],
+                  int(meta.get("cell", regular[2])), int(meta.get("cell_h", regular[3])))
+        return regular, strong
+    return regular, regular
+
+
+def _face(ch, faces, bold, scale):
+    """The face one character is drawn with.
+
+    Above BOLD_MAX_SCALE an ideograph keeps the regular weight: the bold atlas is
+    the regular one dilated by a pixel, which closes the counters of dense glyphs
+    (置, 暂, 摊) and turns a 36px heading into a blob.  Latin and digits keep
+    their bold at every size.
+    """
+    regular, strong = faces
+    if strong is regular or not bold:
+        return regular
+    if int(scale) > BOLD_MAX_SCALE and _wide(ch, regular[0]):
+        return regular
+    return strong
+
+
+def _layout(text, faces, bold, scale, extra):
+    """(width at 1x, tallest cell) with the per-character face choice applied."""
+    regular = faces[0]
+    width = 0
+    height = 0
+    for index, ch in enumerate(text):
+        face = _face(ch, faces, bold, scale)
+        width += _adv(ch, face[0])
+        height = max(height, face[3])
+        if index + 1 < len(text):
+            nxt = text[index + 1]
+            if extra and _wide(ch, regular[0]) and _wide(nxt, regular[0]):
+                width += extra
+    return width, height
 
 
 def measure(text, scale=1, bold=False):
     """(width, height) of text at an integer scale, in pixels."""
     _load()
-    table, _ = _table(bold)
     scale = max(1, int(scale))
-    width = _advance(text, table, tracking(scale))
-    return (width * scale, _cell_for(bold)[1] * scale)
+    width, height = _layout(text, _faces(bold), bold, scale, tracking(scale))
+    return (width * scale, height * scale)
 
 
 def render(text, scale=1, color=(255, 255, 255, 255), bold=False):
@@ -259,22 +308,26 @@ def render(text, scale=1, color=(255, 255, 255, 255), bold=False):
 
 
 def _draw(text, scale, color, bold):
-    table, atlas = _table(bold)
-    cell_w, cell_h = _cell_for(bold)
-    if atlas is None or not text:
+    faces = _faces(bold)
+    regular = faces[0]
+    if regular[1] is None or not text:
+        cell_w, cell_h = _cell_for(bold)
         return pygame.Surface((max(1, cell_w * scale), max(1, cell_h * scale)),
                               pygame.SRCALPHA)
     extra = tracking(scale)
-    width = _advance(text, table, extra)
-    surf = pygame.Surface((max(1, width), cell_h), pygame.SRCALPHA)
+    width, height = _layout(text, faces, bold, scale, extra)
+    surf = pygame.Surface((max(1, width), max(1, height)), pygame.SRCALPHA)
     x = 0
     for index, ch in enumerate(text):
-        entry = table.get(ch)
+        face = _face(ch, faces, bold, scale)
+        entry = face[0].get(ch)
         if entry is not None:
-            surf.blit(atlas, (x, 0), entry[0])
-        x += _adv(ch, table)
-        if index + 1 < len(text) and _wide(ch, table) and _wide(text[index + 1], table):
-            x += extra
+            surf.blit(face[1], (x, 0), entry[0])
+        x += _adv(ch, face[0])
+        if index + 1 < len(text):
+            nxt = text[index + 1]
+            if extra and _wide(ch, regular[0]) and _wide(nxt, regular[0]):
+                x += extra
     if scale != 1:
         surf = pygame.transform.scale(surf, (surf.get_width() * scale, surf.get_height() * scale))
     tint = _rgba(color)

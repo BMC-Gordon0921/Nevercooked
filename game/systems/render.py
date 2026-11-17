@@ -27,7 +27,7 @@ COL_CYAN = config.color("cyan")
 COL_FOG = config.color("fog")
 COL_AMBER = config.color("amber")
 COL_GOLD = config.color("amber_light") if "amber_light" in config.PALETTE else COL_AMBER
-COL_LABEL = (86, 96, 116)
+COL_LABEL = (62, 72, 94)
 
 _BG = {}
 _SHADOWS = {}
