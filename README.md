@@ -29,6 +29,18 @@ python main.py
 
 依赖：Python 3.11+、`pygame-ce` 2.5+（`pip install pygame-ce`）。逻辑分辨率固定 1280×720，按桌面大小自动取整数缩放倍率（像素不会被拉糊）。
 
+### MCP 工具栈（2D 组）
+
+美术与音频的 MCP 服务（Aseprite `8770` / 8bit-music `8771` / Soundbox `17494`）由本地工具目录 `_sb/` 提供（整目录默认被 `.gitignore` 忽略，属于本机工具链）。
+
+```powershell
+.\启动-2D-MCP.cmd            # 启动：顺带补开 Soundbox 与 Aseprite 程序
+.\启动-2D-MCP.cmd -Status    # 只看状态
+.\启动-2D-MCP.cmd -Stop      # 只停 2D 组
+.\启动-2D-MCP.cmd -Probe     # 启动并做 MCP 握手自检（tools/list）
+```
+
+这组端口与 `D:\Projects\Porcelain_Workshop` 的 3D 组（Blender `8772` / Godot `8773`，入口 `启动-3D-MCP.cmd`）完全分开：各自独立的 `gw_supervisor.py`、pid 与日志（本项目在 `_sb\gw_state\2d\`），`-Stop` 只作用于本组端口，两边同时开着互不影响。
 ### 让 AI 自己打
 
 两个开关把键盘交给 `game/systems/ai.py` 的厨师大脑，开起来就是 AI 在对局里干活（都是 hard，方便两档对比）：
