@@ -4,10 +4,11 @@ from __future__ import annotations
 import pygame
 
 from core import config
-from game.entities.actor import Actor
+from game.entities.actor import HELPER_TINT, Actor
 from game.entities.base import Entity
 from game.entities.item import GroundItem, Item, reset_ids
 from game.entities.station import Station
+from game.systems.tasking import TaskBoard
 
 WALL_BACK_H = 120
 WALL_SIDE_H = 120
@@ -27,6 +28,8 @@ class World:
         self.orders = None
         self.score = None
         self.last_breakdown = None
+        self.tasks = TaskBoard()
+        self.helper = None
         layout = config.LAYOUT
         room = layout["room"]
         self.room = pygame.Rect(room["x"], room["y"], room["w"], room["h"])
@@ -42,6 +45,45 @@ class World:
         self.player = Actor(self._foot_for_tile(*spawn))
         self.entities.append(self.player)
         self.player.foot.midbottom = (self.player.foot.centerx, self.player.foot.bottom)
+
+    def spawn_helper(self, tile=None):
+        """Second cook (the AI helper).  Only called when the round asked for coop."""
+        if self.helper is not None:
+            return self.helper
+        if tile is None:
+            tile = self._helper_tile()
+        foot = self._foot_for_tile(*tile)
+        self.helper = Actor(foot, role="helper", tint=HELPER_TINT)
+        self.entities.append(self.helper)
+        self.helper.foot.midbottom = (self.helper.foot.centerx, self.helper.foot.bottom)
+        return self.helper
+
+    def actors(self):
+        """Every cook in the kitchen, player first."""
+        return [self.player] if self.helper is None else [self.player, self.helper]
+
+    def _helper_tile(self):
+        """A free tile beside the player's spawn, biased to the right.
+
+        The layout only carries the player spawn; walking the grid outward keeps
+        the helper off the counter row whatever the map looks like.
+        """
+        from game.systems import nav
+
+        grid = nav.grid_for(self)
+        start = grid.cell(self.player.foot.center)
+        order = ((1, 0), (-1, 0), (1, 1), (-1, 1), (2, 0), (-2, 0), (0, 1), (0, -1))
+        player_foot = self.player.foot
+        for dx, dy in order:
+            cell = (start[0] + dx, start[1] + dy)
+            if not grid.walkable(cell):
+                continue
+            probe = self._foot_for_tile(*cell)
+            if probe.colliderect(player_foot):
+                continue
+            if self.spot_is_free(probe):
+                return cell
+        return start
 
     # -- construction ---------------------------------------------------
     def tile_rect(self, col, row):
@@ -244,6 +286,7 @@ class World:
         for toss in self.tosses:
             toss["t"] += dt
         self.tosses = [t for t in self.tosses if t["t"] < 0.18]
+        self.tasks.tick(dt)
 
     def solids(self):
         return [e for e in self.entities if e.solid]
@@ -254,12 +297,17 @@ class World:
         for station in self.stations:
             if station.slot is not None:
                 holders[id(station.slot)] = holders.get(id(station.slot), 0) + 1
-        if self.player.hand is not None:
-            holders[id(self.player.hand)] = holders.get(id(self.player.hand), 0) + 1
+        for actor in self.actors():
+            if actor.hand is not None:
+                holders[id(actor.hand)] = holders.get(id(actor.hand), 0) + 1
         for entity in self.entities:
             if isinstance(entity, GroundItem):
                 holders[id(entity.item)] = holders.get(id(entity.item), 0) + 1
         problems = []
+        for station in self.tasks.station_refs():
+            if station not in self.stations:
+                problems.append("task board holds a station that left the world")
+                break
         for item in self.items:
             count = holders.get(id(item), 0)
             if count != 1:

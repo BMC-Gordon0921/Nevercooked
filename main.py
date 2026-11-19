@@ -18,7 +18,7 @@ import sys
 
 import pygame
 
-from core import audio, config, ime
+from core import audio, config, ime, profile
 from core.input import Intent, read
 
 ime.preload()
@@ -34,7 +34,19 @@ PROFILES = {"superai": "strong", "ai": "relaxed"}
 
 
 class App:
-    def __init__(self, autopilot=None):
+    def __init__(self, autopilot=None, coop=None, helper=None, helper_policy=None):
+        stored = profile.settings()
+        # CLI beats the persisted setting; --helper off wins over everything.
+        if helper == "off":
+            self.coop = False
+        elif helper:
+            self.coop = True
+        elif coop is not None:
+            self.coop = bool(coop)
+        else:
+            self.coop = bool(stored.get("coop", False))
+        self.helper_profile = helper if helper in ("helper", "strong") else stored.get("helper_profile", "helper")
+        self.helper_policy = helper_policy or stored.get("helper_policy", "backlog")
         pygame.init()
         audio.init()
         pygame.display.set_caption("欢闹厨房！  Nevercooked!")
@@ -68,7 +80,21 @@ class App:
             return 1
 
     def switch(self, scene):
+        from scenes.title import TitleScene
+        if isinstance(scene, TitleScene):
+            self.autopilot = None
+            self._brain = None
+            self._brain_scene = None
         self.scene = scene
+
+    def step(self, intent):
+        # Menu controls remain human-owned, including while the AI is paused.
+        if (getattr(self.scene, "paused", False) or intent.menu or intent.settings):
+            chosen = intent
+        else:
+            auto = self.autopilot_intent()
+            chosen = intent if auto is None else auto
+        self.scene.update(STEP, chosen)
 
     def autopilot_intent(self):
         """The brain's Intent for this step, or None while a human is playing.
@@ -116,10 +142,8 @@ class App:
             steps = 0
             pending = intent
             while accumulator >= STEP and steps < MAX_STEPS:
-                auto = self.autopilot_intent()
-                self.scene.update(STEP, pending if auto is None else auto)
+                self.step(pending)
                 pending.clear_edges()
-                pending = Intent()
                 accumulator -= STEP
                 steps += 1
             if steps:
@@ -138,6 +162,12 @@ def parse_args(argv=None):
                        help="第一档 AI（strong）接管玩家行动，直接开局")
     group.add_argument("--ai", action="store_true",
                        help="第二档 AI（relaxed）接管玩家行动，直接开局")
+    parser.add_argument("--coop", action="store_true",
+                        help="开局就带 AI 帮厨（灶罐），由设置里的档位与倾向驱动")
+    parser.add_argument("--helper", choices=("off", "helper", "strong"), default=None,
+                        help="帮厨熟练度：off 关闭双人，helper 学徒，strong 熟手")
+    parser.add_argument("--helper-policy", choices=("backlog", "assist"), default=None,
+                        help="帮厨倾向：backlog 补单（清积压），assist 辅助（只接急单）")
     return parser.parse_args(argv)
 
 
@@ -148,7 +178,8 @@ def main(argv=None):
         autopilot = PROFILES["superai"]
     elif args.ai:
         autopilot = PROFILES["ai"]
-    app = App(autopilot)
+    app = App(autopilot, coop=(args.coop or None), helper=args.helper,
+              helper_policy=args.helper_policy)
     app.run()
     return 0
 

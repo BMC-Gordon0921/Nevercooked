@@ -11,6 +11,7 @@
     "walk_fps": 8,
     "idle_fps": 4
   },
+  "helper": { "speed": 200.0, "sprint_speed": 340.0 },
   "interaction": { "sticky_ms": 150, "reach_tiles": 1 },
   "timing": { "throw_tiles": 1.5 },
   "fade": { "alpha": 110, "time": 0.12, "min_height": 40 },

@@ -2,6 +2,8 @@
 
 可玩 demo v0.2 —— 碗底港第七码头的一人食档口。3 分钟一局，边跑边切边炒。
 
+开发现状、MCP 实测与下一阶段验收清单见 [项目检查与下一步](docs/project-review.md)。策划案描述目标范围，当前交付为单人 demo。
+
 > 原名《乱灶：星港食堂》（Messy Wok: Starport Canteen），2026-11 定名《欢闹厨房！》/ Nevercooked!。
 
 仓库：<https://github.com/BMC-Gordon0921/Nevercooked>
@@ -16,6 +18,16 @@ python main.py
 ```
 
 Windows 上装好依赖后直接双击 `启动游戏.cmd` 即可。
+
+推荐用项目虚拟环境，避免系统 Python 缺依赖。Windows PowerShell：
+
+```powershell
+python -m venv .venv
+.venv/Scripts/python.exe -m pip install -r requirements.txt
+.venv/Scripts/python.exe main.py
+```
+
+启动脚本优先使用 `.venv`，并支持传入 `--ai` / `--superai`。字体测试额外需要 `numpy`。
 
 > HTTPS 连不上 GitHub 的内网/校园网环境，把地址换成 SSH：`git clone git@github.com:BMC-Gordon0921/Nevercooked.git`（先在 GitHub 添加本机公钥）。
 
@@ -182,6 +194,27 @@ python main.py --ai        # 第二档（relaxed）：慢半拍、会挑错单�
 - 试过并否掉的思路（避免重复劳动）：抛掷（省 15% 走动、手持时间 16%→11%，出餐数不变，767 对 807）、压 rush 窗口（+10 但五个种子里两个掉单）、提前蒸米（758 对 807）、地面预置备菜（0 次成功，贴身按 F 永远喂机器、放不下地）、提速 1.5×（不涨，瓶颈是机器不是腿）。
 - 跑基准：`python tests/ai.py`（10 轮约 4 秒，不需要窗口）。
 
+### 双人搭档（AI 帮厨）
+
+设置里把「AI 帮厨（灶罐）」打开，第二个厨师就进厨房。他不是被点名的工具人，而是第二个 `Brain`：和玩家同一套输入、同一套交互判定、同一套 A*，只多一层礼让。
+
+- 分工靠共享租约（`game/systems/tasking.py`）：设备和订单都独占，租约 30 秒、按帧续；玩家的准星每帧给自己脚下这台设备续一条短租约，帮厨看到就让开，不会再出现「两个人按同一台蒸笼」。
+- 玩家不下命令：帮厨自己接单、自己跑料、自己救糊盘。档位只管「他有多愿意抢」——`补单`（默认）清你还没走到的票，`辅助` 只接手快超时的单、救火优先；局内 `Y` 键让他歇一下／上工。
+- 玩家离开键盘 3 秒后他自动顶班（三单并行），挂机不会看着厨房停摆；玩家一动手他又退回第二位。
+- 双人局不计最佳成绩与解锁，只累加存档里的 `coop_runs`。
+
+实测（挑战难度、180 秒、seed 1–5，`python tests/coop_speed.py`）：
+
+| 玩家 | 单人 | 双人 | 差 |
+|---|---|---|---|
+| strong 代打 | 806.8★ | 806.8★ | +0.0 |
+| relaxed 代打 | 381.2★ | 601.6★ | +220.4 |
+
+- strong 只涨 0 分不是 bug：强 bot 已经把出单节奏清空（蒸笼占用 26–40%、队列峰值 0），厨房是「到单上限」，第二个厨师没有单可接。给慢一点的玩家才有价值。
+- 玩家走开 180 秒的对照：单人队列峰值 8 张、跑单 5、出餐 0；双人队列峰值 0、跑单 0、出餐 15。
+- 验收：`python tests/coop_accept.py`（A1–A7，含上面这些数字）与 `python tests/helper.py`（8 项：租约唯一、礼让准星、争用有提示、Y 歇工、长跑校验）。
+- 试过并否掉：给玩家侧加「公平门」（帮厨忙时少接单）把分数拖低 41.6 分；提前蒸饭（−48）；帮厨快速放弃卡住的单（均值掉到 649.8）；`学徒/熟手` 档位的参数差异对产能没有显著影响（10 种子 500.5 对 493.5），只改手感——瓶颈在设备，不在腿。
+
 ## 计分
 
 单笔 = 基础价 × 新鲜度 × 连击倍率 + 小费，再乘难度结算倍率；净收入再扣糊菜（8/份）与跑单（12/单），灶币 = 净收入 × 0.8，评级按净收入（S ≥ 420 / A ≥ 260 / B ≥ 130 / 其余 C）。
@@ -193,7 +226,8 @@ main.py            固定 60Hz 主循环、整数缩放、MW_FRAMES 限帧（自
 core/              config / text / input / assets / audio / ime / mapfile / profile
 game/entities/     actor（角色）、item、station、base
 game/systems/      movement、interaction、throwing、cooking、ordering、scoring、
-                   difficulty、guide、tutorial、render、hud、camera
+                   difficulty、guide、tutorial、render、hud、camera、
+                   ai（代打/帮厨大脑）、helper（第二位厨师）、tasking（设备与订单租约）
 game/world.py      世界状态与物品唯一持有权、摄像机取景范围
 scenes/            title（难度选择）、game、results
 data/              tuning / palette / stations / ingredients / dishes / ai.json /
@@ -232,6 +266,12 @@ python tests/path.py        # 引导：阶段/动词/步数、A* 路径连续且
 python tests/settings.py    # 设置：默认值、音量步进与落盘、路径开关、返回上级场景
 python tests/font.py        # 像素字体：语料全覆盖、无灰边（1-bit alpha）、整数倍缩放
 python tests/ai.py          # AI 帮厨：两档 × 5 seed 跑满一局，打印星级与判决
+python tests/autopilot.py   # AI 命令行参数、接管与出餐
+python tests/regressions.py # AI 菜单控制、补帧持续输入、损坏存档恢复（临时存档）
+python tests/helper.py      # 帮厨：自主接单、租约唯一、礼让准星、争用提示、Y 歇工、长跑校验
+python tests/coop_accept.py # 双角色验收 A1–A7：挂机顶班、积压消化、礼让、单主、争用提示、吞吐、不计成绩
+python tests/coop_speed.py  # 吞吐基准：solo/coop/assist × 5 seed，打印星级（可 --player relaxed）
+python tests/shot_coop.py   # 双人截图：局内帮厨状态条 / 歇工 / 设置页 / 双人结算
 python tests/shots3.py      # v0.3 截图：地面箭头路径 / 设置页
 ```
 
@@ -239,7 +279,7 @@ Linux/CI 上跑测试需要 `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy`。
 
 ## 这一版还没做
 
-- 灶罐（AI 帮厨）已经有算法与基准，但还没接进对局里当你的搭档；合作模式、灶币消费与升级也还没做
+- 帮厨已能当搭档（本地双人切片），但还没有局域网联机；灶币消费与升级也还没做
 - 音效是脚本合成的 12 个短音（`tools/audio/make_sfx.py`），BGM 1 首，没有语音；试听全部音效用 `tests/audio_preview.wav`
 - 其余 9 道菜只有价目，没有工序链
 - 只有两张内置厨房（可以改 `data/map.json` 自定义，但没有游戏内编辑器）

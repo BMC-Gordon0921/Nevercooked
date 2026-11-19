@@ -14,6 +14,7 @@ from core import config
 from game.entities.item import GroundItem
 from game.entities.station import Station
 from game.systems import difficulty
+from game.systems.tasking import PLAYER
 
 
 # ---------------------------------------------------------------- geometry
@@ -324,6 +325,23 @@ def _plan(actor, target, world):
     station = target
     stype = station.stype
     empty = station.slot is None
+
+    # The helper is mid-operation on this machine: the player still has the last
+    # word, but not through the middle of somebody else's batch.  A second tap
+    # (after the board hands the station to the player) does get through.
+    board = getattr(world, "tasks", None)
+    if board is not None and stype not in ("crate", "trash", "serve"):
+        held = board.station_owner(station)
+        other = getattr(getattr(held, "brain", None), "actor", None)
+        # A lease held by *another* cook's mission, mid-batch, is a reject with a
+        # reason.  Your own mission never blocks you, and a finished batch is
+        # always yours to take.
+        if (other is not None and other is not actor
+                and station.phase in ("prep", "add", "cook")):
+            name = station.defn.get("name", "设备")
+            who = "帮厨" if getattr(other, "role", "") == "helper" else "另一位厨师"
+            return plan("noop", who + "正在用" + name, False,
+                        "%s正在用这台%s，等他做完" % (who, name))
 
     if stype == "crate":
         if hand is None:

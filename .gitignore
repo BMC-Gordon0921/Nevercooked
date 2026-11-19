@@ -16,6 +16,7 @@ tests/*_preview.wav
 # --- tool / MCP clutter (probe dumps, launcher logs) ----------------------
 *.log
 cat.json
+_tmp/
 
 # --- os / editor ---------------------------------------------------------
 .DS_Store

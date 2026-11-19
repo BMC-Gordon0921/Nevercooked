@@ -11,10 +11,16 @@ FACING_UP = 1
 FACING_SIDE = 2
 
 
+HELPER_TINT = (176, 196, 214)   # cool grey-blue: the helper is not the player
+
+
 class Actor(Entity):
-    def __init__(self, foot):
-        player = config.TUNING["player"]
+    def __init__(self, foot, role="player", tint=None, tuning=None):
+        player = tuning or config.TUNING["player"]
         self.frames = assets.chef_placeholder((player["sprite_w"], player["sprite_h"]))
+        self.role = role
+        self.tint = tint
+        self.frames = self._paint(self.frames)
         super().__init__(foot, "chef_sheet", player["sprite_h"], layer_bias=1,
                          solid=False, color=(200, 208, 220),
                          sprite=self.frames[0])
@@ -32,6 +38,24 @@ class Actor(Entity):
         self.target = None
         self.target_age = 0.0
         self.walked = 0.0
+
+    # -- sprites ---------------------------------------------------------
+    def _paint(self, frames):
+        """Apply the role tint over a sheet (None keeps the sheet as it came)."""
+        if self.tint is None:
+            return list(frames)
+        out = []
+        for frame in frames:
+            copy = frame.copy()
+            copy.fill((self.tint[0], self.tint[1], self.tint[2], 255),
+                      special_flags=pygame.BLEND_RGBA_MULT)
+            out.append(copy)
+        return out
+
+    def set_sheet(self, frames):
+        """Install the real chef sheet; the tint stays on top of it."""
+        self.frames = self._paint(frames)
+        self.sprite = self.frames[0]
 
     # -- facing ---------------------------------------------------------
     def face(self, dx, dy):

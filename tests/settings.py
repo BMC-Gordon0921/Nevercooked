@@ -49,11 +49,13 @@ def main():
 
     before = profile.settings()
     saved = profile.load()
-    check("defaults present", set(before) == {"sfx", "bgm", "path"}, before)
+    check("defaults present",
+          set(before) == {"sfx", "bgm", "path", "coop", "helper_profile",
+                          "helper_policy"}, before)
 
     app = FakeApp()
     scene = SettingsScene(app, None)
-    check("three rows", len(ROWS) == 3, [r[1] for r in ROWS])
+    check("six rows", len(ROWS) == 6, [r[1] for r in ROWS])
     scene.draw(surface)
     check("draws without error", True)
 
@@ -85,12 +87,37 @@ def main():
     press(scene, nav=-1)
     check("path toggled", profile.settings()["path"] != on_before,
           (on_before, profile.settings()["path"]))
+    # the second cook: on/off, then the two dropdowns
+    press(scene, pick=4)
+    coop_before = profile.settings()["coop"]
+    press(scene, nav=1)
+    check("coop toggled", profile.settings()["coop"] != coop_before,
+          (coop_before, profile.settings()["coop"]))
+    press(scene, pick=5)
+    profile_before = profile.settings()["helper_profile"]
+    press(scene, nav=1)
+    after_profile = profile.settings()["helper_profile"]
+    check("helper profile cycles", after_profile != profile_before,
+          (profile_before, after_profile))
+    press(scene, pick=6)
+    policy_before = profile.settings()["helper_policy"]
+    press(scene, nav=1)
+    check("helper policy cycles", profile.settings()["helper_policy"] != policy_before,
+          (policy_before, profile.settings()["helper_policy"]))
     scene.draw(surface)
     check("draws toggled state", True)
 
     # a fresh load keeps what we wrote
     reloaded = profile.settings()
     check("settings survive reload", reloaded["path"] == profile.settings()["path"])
+
+    # a coop scene only exists when the profile asks for it
+    profile.save_settings({"coop": True})
+    app.coop = True
+    coop_game = GameScene(app, "normal")
+    check("coop scene has a helper", coop_game.helper is not None)
+    check("helper body is the second cook",
+          coop_game.helper.actor is not coop_game.world.player)
 
     # game picks the switch up on resume
     game = GameScene(app, "normal")

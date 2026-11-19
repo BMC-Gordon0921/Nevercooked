@@ -152,6 +152,26 @@ def draw_hints(surface, hints):
         x += width + gap
 
 
+def draw_helper_status(surface, helper):
+    """One line for the second cook: what the helper is on, or that it is idle.
+
+    It sits on the floor line just above the hint bar, out of the way of the
+    tickets on top; a paused helper turns amber so "why is nobody helping" has
+    an answer on screen.
+    """
+    if helper is None:
+        return
+    tint = COL_AMBER if helper.paused else COL_CYAN
+    text = textmod.render(helper.label(), 12, tint, True)
+    chip = pygame.Rect(0, 0, text.get_width() + 18, 22)
+    chip.bottomleft = (14, config.SCREEN_H - config.BAR_BOTTOM_H - 6)
+    veil = pygame.Surface(chip.size, pygame.SRCALPHA)
+    veil.fill((11, 14, 20, 176))
+    surface.blit(veil, chip.topleft)
+    pygame.draw.rect(surface, COL_SLATE, chip, 1, border_radius=6)
+    surface.blit(text, text.get_rect(center=chip.center))
+
+
 def draw_step_banner(surface, step, top=None):
     """The one line that answers "what now": stage mark, counter, verb, place.
 

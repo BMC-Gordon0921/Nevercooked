@@ -29,6 +29,7 @@ import random
 from core import config
 from core.input import Intent
 from game.systems import interaction, nav
+from game.systems.tasking import PLAYER, TaskBoard
 
 DONE, TODO, BLOCKED = "done", "todo", "blocked"
 
@@ -222,7 +223,7 @@ class Phase:
 class Mission:
     """Everything one dish needs, for one live ticket."""
 
-    __slots__ = ("dish", "phases", "tag", "age", "last_progress")
+    __slots__ = ("dish", "phases", "tag", "age", "last_progress", "brain")
 
     def __init__(self, dish, phases, tag=None):
         self.dish = dish
@@ -230,6 +231,9 @@ class Mission:
         self.tag = tag
         self.age = 0.0
         self.last_progress = 0.0
+        #: which Brain owns this mission -- a lease on a shared board carries it,
+        #: so "the other cook is mid-batch" can be told from "I am mid-batch".
+        self.brain = None
 
     @property
     def finished(self):
@@ -250,11 +254,18 @@ def can_feed(station, item_id):
 class Brain:
     """Plans the kitchen, then drives the cook one frame at a time."""
 
-    def __init__(self, profile="strong"):
+    def __init__(self, profile="strong", actor=None, board=None):
         table = load_profiles()
         self.profile = profile if profile in table else "strong"
         self.params = dict(table[self.profile])
+        self.actor = actor            # None: drive the player (the single-cook game)
+        self.board = board if board is not None else TaskBoard()
+        self.order_filter = None     # optional policy hook, see game/systems/helper.py
         self.reset()
+
+    def cook(self, world):
+        """The body this brain drives: the helper's own, or the player."""
+        return self.actor if self.actor is not None else world.player
 
     # -- lifecycle ------------------------------------------------------
     def reset(self):
@@ -325,7 +336,7 @@ class Brain:
     # -- mission bookkeeping --------------------------------------------
     def _sweep(self, scene, dt):
         world = scene.world
-        player = world.player
+        player = self.cook(world)
         keep = []
         for dish, left in list(self.cool.items()):
             left -= dt
@@ -349,6 +360,7 @@ class Brain:
                 self._release(mission)
                 self.cool[mission.dish] = float(self.params.get("cooldown", 12.0))
                 continue
+            self.board.touch(mission)
             keep.append(mission)
         self.missions = keep
         self.missions.sort(key=lambda m: self._urgency(world, m))
@@ -372,6 +384,7 @@ class Brain:
         for station in list(self.reserved):
             if self.reserved[station] is mission:
                 del self.reserved[station]
+        self.board.release_owner(mission)
 
     def _urgency(self, world, mission):
         best = 1e9
@@ -401,6 +414,7 @@ class Brain:
                 for station in phase.machines:
                     if self.reserved.get(station) is mission:
                         del self.reserved[station]
+                    self.board.release_station(station, mission)
 
     def _preheat(self, scene):
         """Steam the next rice before its ticket lands: the steamer is the slow half."""
@@ -412,10 +426,26 @@ class Brain:
             return
         if id(steam) in {id(station) for station in self.reserved}:
             return                    # a ticket is already on its way there
+        if not self.board.station_free(steam):
+            return                    # the player or the other cook is using it
         phases = self._instantiate(scene, "rice_steamed", keep=-1)
         if not phases:
             return
         self.pre = Mission("rice_steamed", phases, None)
+        self.pre.brain = self
+
+    def _free_tickets(self, world):
+        """Active tickets nobody has claimed and this brain is willing to take."""
+        free = 0
+        for order in world.orders.active:
+            if order.state != "active" or order.dish_id in self.cool:
+                continue
+            if any(m.tag is order for m in self.missions):
+                continue
+            if not self.board.order_free(order, self):
+                continue
+            free += 1
+        return free
 
     def _spawn(self, scene):
         world = scene.world
@@ -433,6 +463,10 @@ class Brain:
                 continue
             if any(m.tag is order for m in self.missions):
                 continue                # this very ticket is already cooking
+            if not self.board.order_free(order, self):
+                continue                # the other cook owns this ticket
+            if self.order_filter is not None and not self.order_filter(order):
+                continue
             phases = self._instantiate(scene, order.dish_id)
             if phases is None:
                 continue
@@ -449,7 +483,11 @@ class Brain:
         for score, order, phases in rank:
             if len(self.missions) >= cap:
                 return
-            self.missions.append(Mission(order.dish_id, phases, order))
+            mission = Mission(order.dish_id, phases, order)
+            mission.brain = self
+            if not self.board.claim_order(order, mission):
+                continue
+            self.missions.append(mission)
 
     def _instantiate(self, scene, dish_id, keep=None):
         spec = dish_spec(dish_id)
@@ -478,7 +516,7 @@ class Brain:
 
     # -- legality -------------------------------------------------------
     def _status(self, world, step):
-        hand = world.player.hand
+        hand = self.cook(world).hand
         station = step.station
         kind = step.kind
         if kind == "fetch":
@@ -557,12 +595,12 @@ class Brain:
 
     # -- choosing -------------------------------------------------------
     def _choose(self, world):
-        hand = world.player.hand
+        hand = self.cook(world).hand
         if hand is not None and self._junk(world, hand):
             trash = self._index(world)["machines"].get("trash")
-            if trash is not None:
+            if trash is not None and self.board.station_free(trash):
                 step = Step("trash", trash)
-                return Phase([step]), step
+                return None, Phase([step]), step
         legal, burning = [], []
         for mission in self._live():
             for phase in mission.phases:
@@ -576,6 +614,12 @@ class Brain:
                 owner = self.reserved.get(step.station)
                 if owner is not None and owner is not mission:
                     continue            # someone else got there first
+                held = self.board.station_owner(step.station)
+                if held is not None and held is not mission:
+                    # "player" is the crosshair claim.  A brain driving the player
+                    # already *is* that claim, so it must not lock itself out.
+                    if not (held == PLAYER and self.cook(world) is world.player):
+                        continue        # the player or the other cook is on it
                 legal.append((phase, mission, step))
                 if (step.kind == "take" and hand is None
                         and step.station.phase == READY
@@ -599,17 +643,23 @@ class Brain:
     def _near(self, world, step):
         """How far this station is, in tiles, from where the cook stands."""
         grid = nav.grid_for(world)
-        here = grid.cell(world.player.foot.center)
+        here = grid.cell(self.cook(world).foot.center)
         foot = step.station.foot
         cell = grid.cell((foot.centerx, foot.centery))
         return abs(here[0] - cell[0]) + abs(here[1] - cell[1])
 
     def _claim(self, phase, mission, step):
-        """Nobody else may touch this station until the phase is done with it."""
+        """Take this phase for ourselves -- but keep the board claim for later.
+
+        A mission reserves its machines for its own plan at choice time, so it
+        stops flip-flopping between steps.  The *shared* lease is only taken on
+        arrival (see _act): two cooks that each pick the wok from across the
+        kitchen would otherwise stand there waiting for one another.
+        """
         for station in (phase.machines or (step.station,)):
             if station.stype in MACHINES:
                 self.reserved.setdefault(station, mission)
-        return phase, step
+        return mission, phase, step
 
     def _junk(self, world, hand):
         """Is what we hold useless to every ticket still in flight?"""
@@ -627,9 +677,9 @@ class Brain:
 
     # -- doing ----------------------------------------------------------
     def _act(self, scene, pick, intent):
-        phase, step = pick
+        mission, phase, step = pick
         world = scene.world
-        player = world.player
+        player = self.cook(world)
         grid = nav.grid_for(world)
         station = step.station
         here = grid.cell(player.foot.center)
@@ -664,6 +714,11 @@ class Brain:
             return
         if interaction.find_target(world, player) is not station:
             return
+        if mission is not None and station.stype in MACHINES:
+            # Shared lease taken on arrival only, and only on machines: crates
+            # and the pass are not exclusive, and a stale crate lease would
+            # serialise two cooks fetching tomatoes for no reason.
+            self.board.claim_station(station, mission)
         intent.interact = True
         dwell = float(self.params["dwell"])
         if dwell > 0.0:
@@ -708,9 +763,10 @@ class Brain:
 
     # -- waiting --------------------------------------------------------
     def _drift(self, scene, intent):
+        self.job = ""
         """Nothing legal: stand where the next timer will need us."""
         world = scene.world
-        player = world.player
+        player = self.cook(world)
         best = None
         for mission in self.missions:
             for phase in mission.phases:
@@ -762,5 +818,6 @@ class Brain:
                                                getattr(step.station, "label", "")))
                 break
         return {"profile": self.profile, "job": self.job,
+                "actor": "helper" if self.actor is not None else "player",
                 "missions": len(self.missions), "heads": heads,
                 "reserved": sorted(s.stype for s in self.reserved)}

@@ -343,14 +343,14 @@ def draw_tosses(surface, world, cam):
 
 
 def draw_hand(surface, cam, world):
-    player = world.player
-    if player.hand is None:
-        return
-    foot = cam.rect(player.foot)
     # Held item rides beside the torso, not on top of it: drawn over the chest
     # it reads as a floating sign rather than something in the cook's hands.
-    icon = assets.image(player.hand.icon, (32, 32))
-    surface.blit(icon, icon.get_rect(midbottom=(foot.centerx + 40, foot.bottom - 30)))
+    for actor in world.actors():
+        if actor.hand is None:
+            continue
+        foot = cam.rect(actor.foot)
+        icon = assets.image(actor.hand.icon, (32, 32))
+        surface.blit(icon, icon.get_rect(midbottom=(foot.centerx + 40, foot.bottom - 30)))
 
 
 def draw_player_busy(surface, cam, world):

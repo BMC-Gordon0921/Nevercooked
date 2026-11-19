@@ -8,14 +8,19 @@ profile, so a re-clone or a hand-edit can never lock somebody out.
 from __future__ import annotations
 
 import json
+import math
 import os
 
 from core import config
 
 PATH = os.path.join(config.ROOT, "profile.json")
 S_RANK = 420          # must match scenes/results.py rank_of()
-DEFAULT_SETTINGS = {"sfx": 0.8, "bgm": 0.25, "path": True}
-DEFAULT = {"best": {}, "unlocked": ["easy", "normal"], "runs": 0,
+DEFAULT_SETTINGS = {"sfx": 0.8, "bgm": 0.25, "path": True,
+                    "coop": False, "helper_profile": "helper",
+                    "helper_policy": "backlog"}
+HELPER_PROFILES = ("helper", "strong")
+HELPER_POLICIES = ("backlog", "assist")
+DEFAULT = {"best": {}, "unlocked": ["easy", "normal"], "runs": 0, "coop_runs": 0,
            "settings": dict(DEFAULT_SETTINGS)}
 
 
@@ -23,6 +28,8 @@ def _clamp(value, fallback):
     try:
         value = float(value)
     except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(value):
         return fallback
     return 0.0 if value < 0.0 else 1.0 if value > 1.0 else value
 
@@ -37,12 +44,18 @@ def _settings(raw):
             out["bgm"] = _clamp(raw.get("bgm"), out["bgm"])
         if "path" in raw:
             out["path"] = bool(raw.get("path"))
+        if "coop" in raw:
+            out["coop"] = bool(raw.get("coop"))
+        if raw.get("helper_profile") in HELPER_PROFILES:
+            out["helper_profile"] = raw["helper_profile"]
+        if raw.get("helper_policy") in HELPER_POLICIES:
+            out["helper_policy"] = raw["helper_policy"]
     return out
 
 
 def _fresh():
     return {"best": {}, "unlocked": list(DEFAULT["unlocked"]), "runs": 0,
-            "settings": dict(DEFAULT_SETTINGS)}
+            "coop_runs": 0, "settings": dict(DEFAULT_SETTINGS)}
 
 
 def load():
@@ -57,11 +70,19 @@ def load():
     best = data.get("best")
     if isinstance(best, dict):
         out["best"] = {str(k): int(v) for k, v in best.items()
-                       if isinstance(v, (int, float))}
+                       if type(v) in (int, float) and (not isinstance(v, float) or math.isfinite(v))}
     unlocked = data.get("unlocked")
     if isinstance(unlocked, list):
-        out["unlocked"] = [value for value in unlocked if isinstance(value, str)]
-    out["runs"] = int(data.get("runs", 0) or 0)
+        out["unlocked"] = [value for value in ("easy", "normal", "hard")
+                           if value in DEFAULT["unlocked"] or value in unlocked]
+    try:
+        out["runs"] = max(0, int(data.get("runs", 0) or 0))
+    except (TypeError, ValueError, OverflowError):
+        out["runs"] = 0
+    try:
+        out["coop_runs"] = max(0, int(data.get("coop_runs", 0) or 0))
+    except (TypeError, ValueError, OverflowError):
+        out["coop_runs"] = 0
     out["settings"] = _settings(data.get("settings"))
     return out
 
@@ -120,6 +141,18 @@ def record(level, stars):
     data["unlocked"] = [name for name in order if name in data["unlocked"]]
     save(data)
     return data, opened
+
+
+def record_coop():
+    """A coop round never touches best stars or unlocks: only a run counter.
+
+    The challenge tier is measured solo; letting a helper inflate it would make
+    every best star in the file a lie about what one cook can do.
+    """
+    data = load()
+    data["coop_runs"] = int(data.get("coop_runs", 0) or 0) + 1
+    save(data)
+    return data
 
 
 def settings(data=None):

@@ -12,7 +12,8 @@ _UP = (pygame.K_w, pygame.K_UP)
 class Intent:
     __slots__ = ("mx", "my", "sprint", "interact", "throw", "menu", "confirm",
                  "click_pos", "nav", "updown", "pick", "skip", "help",
-                 "settings", "text", "backspace", "code", "interact_held")
+                 "settings", "text", "backspace", "code", "interact_held",
+                 "helper")
 
     def __init__(self):
         self.mx = 0
@@ -33,6 +34,7 @@ class Intent:
         self.backspace = 0   # backspaces this frame
         self.code = False    # C: open the redemption-code prompt
         self.interact_held = False   # F / left button currently down
+        self.helper = False   # Y: pause / resume the AI helper
 
     def clear_edges(self):
         self.interact = False
@@ -49,6 +51,7 @@ class Intent:
         self.text = ""
         self.backspace = 0
         self.code = False
+        self.helper = False
 
 
 def read(events):
@@ -107,6 +110,8 @@ def read(events):
                 intent.skip = True
             elif event.key == pygame.K_h:
                 intent.help = True
+            elif event.key == pygame.K_y:
+                intent.helper = True
             elif event.key == pygame.K_TAB:
                 intent.settings = True
         elif event.type == pygame.MOUSEBUTTONDOWN:

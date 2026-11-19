@@ -26,7 +26,16 @@ ROWS = (
     ("sfx", "音效音量"),
     ("bgm", "背景音乐"),
     ("path", "地面箭头路径"),
+    ("coop", "AI 帮厨（灶罐）"),
+    ("helper_profile", "帮厨熟练度"),
+    ("helper_policy", "帮厨倾向"),
 )
+
+HELPER_PROFILES = (("helper", "学徒"), ("strong", "熟手"))
+HELPER_POLICIES = (("backlog", "补单"), ("assist", "辅助"))
+CHOICES = {"helper_profile": HELPER_PROFILES, "helper_policy": HELPER_POLICIES}
+
+
 class SettingsScene:
     def __init__(self, app, back=None):
         self.app = app
@@ -46,10 +55,20 @@ class SettingsScene:
         self.message = "已保存"
         self.message_t = 1.4
 
+    @staticmethod
+    def _cycle(key, current, direction):
+        """Next value in a fixed whitelist; unknown values fall back to the first."""
+        values = [value for value, _ in CHOICES[key]]
+        if current not in values:
+            return values[0]
+        return values[(values.index(current) + direction) % len(values)]
+
     def _nudge(self, direction):
         key = ROWS[self.index][0]
-        if key == "path":
-            self._store({"path": direction > 0})
+        if key in ("path", "coop"):
+            self._store({key: direction > 0})
+        elif key in CHOICES:
+            self._store({key: self._cycle(key, self.settings.get(key), direction)})
         else:
             value = max(0.0, min(1.0, round(self.settings[key] + 0.05 * direction, 2)))
             self._store({key: value})
@@ -129,10 +148,24 @@ class SettingsScene:
                             size=13, color=COL_CYAN if on else COL_SILVER,
                             anchor="center")
 
+    def _choice_pill(self, surface, rect, label, chosen):
+        """A fixed-width pill with the current value centred inside it."""
+        box = pygame.Rect(0, 0, 132, 30)
+        box.midright = (rect.right, rect.centery)
+        pygame.draw.rect(surface, COL_INK, box, border_radius=15)
+        pygame.draw.rect(surface, COL_CYAN if chosen else COL_STEEL, box, 2, border_radius=15)
+        textmod.shadow_text(surface, "◀", (box.x + 14, box.centery + 1), size=12,
+                            color=COL_STEEL, anchor="center")
+        textmod.shadow_text(surface, "▶", (box.right - 14, box.centery + 1), size=12,
+                            color=COL_STEEL, anchor="center")
+        textmod.shadow_text(surface, label, (box.centerx, box.centery + 1), size=14,
+                            color=COL_SILVER if chosen else COL_FOG, bold=chosen,
+                            anchor="center")
+
     def draw(self, surface):
         self._sky(surface)
         cx = config.SCREEN_W // 2
-        card = pygame.Rect(0, 0, 760, 436)
+        card = pygame.Rect(0, 0, 760, 560)
         card.center = (cx, 360)
         shadow = card.move(0, 8)
         veil = pygame.Surface(shadow.size, pygame.SRCALPHA)
@@ -148,7 +181,7 @@ class SettingsScene:
 
         rows = []
         for i, (key, label) in enumerate(ROWS):
-            row = pygame.Rect(card.x + 52, card.y + 104 + i * 78, card.w - 104, 58)
+            row = pygame.Rect(card.x + 52, card.y + 104 + i * 70, card.w - 104, 58)
             rows.append(row)
             chosen = i == self.index
             if chosen:
@@ -166,6 +199,19 @@ class SettingsScene:
                 textmod.shadow_text(surface, sub, (row.x + 8, row.centery + 14),
                                     size=12, color=COL_FOG, anchor="midleft")
                 self._toggle(surface, row, on)
+            elif key == "coop":
+                on = bool(self.settings["coop"])
+                sub = "第二位厨师自主掌勺（Y 键让他歇一下），双人局不计最佳成绩"
+                textmod.shadow_text(surface, sub, (row.x + 8, row.centery + 14),
+                                    size=12, color=COL_FOG, anchor="midleft")
+                self._toggle(surface, row, on)
+            elif key in CHOICES:
+                values = dict(CHOICES[key])
+                sub = ("学徒一步一停、不爱抢；熟手不歇脚、冲刺救火" if key == "helper_profile"
+                       else "补单=清掉积压的订单；辅助=只接手快超时的单")
+                textmod.shadow_text(surface, sub, (row.x + 8, row.centery + 14),
+                                    size=12, color=COL_FOG, anchor="midleft")
+                self._choice_pill(surface, row, values.get(self.settings.get(key), "—"), chosen)
             else:
                 value = float(self.settings[key])
                 sub = "调低可以只听清设备提示音" if key == "sfx" else "0% 只留音效"

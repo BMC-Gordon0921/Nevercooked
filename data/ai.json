@@ -17,6 +17,23 @@
     "nearest": 0,
     "clash": 11
   },
+  "helper": {
+    "dwell": 0.25,
+    "lookahead": 2,
+    "flex": 0,
+    "skip": 0.10,
+    "max_orders": 3,
+    "idle_wait": 0.3,
+    "sprint": false,
+    "burn_urgent": 2.0,
+    "hand_timeout": 16,
+    "turn_slack": 12,
+    "stuck": 26,
+    "cooldown": 12,
+    "preheat": 0,
+    "nearest": 0.6,
+    "clash": 14
+  },
   "relaxed": {
     "dwell": 0.5,
     "lookahead": 3,

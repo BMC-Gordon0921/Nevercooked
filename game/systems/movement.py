@@ -39,9 +39,9 @@ def move(actor, dx, dy, solids):
     return moved
 
 
-def update_actor(actor, intent, dt, world):
+def update_actor(actor, intent, dt, world, params=None):
     """Consume an intent, move the actor, update sprint and facing."""
-    tuning = config.TUNING["player"]
+    tuning = params or config.TUNING["player"]
     mx, my = intent.mx, intent.my
     if mx and my:
         mx *= _DIAGONAL

@@ -13,6 +13,7 @@ from game.systems import guide, nav
 from game.systems.tutorial import Tutorial
 from game.systems import movement
 from game.systems.camera import Camera
+from game.systems.helper import Helper
 
 HINTS_IDLE = [("F", "交互"), ("Q", "抛出"), ("右键", "冲刺"), ("Tab", "设置")]
 CHOP_CUES = ("sfx_chop_1", "sfx_chop_2", "sfx_chop_3")
@@ -39,6 +40,17 @@ class GameScene:
             frames = assets.chef_placeholder((config.TUNING["player"]["sprite_w"],
                                               config.TUNING["player"]["sprite_h"]))
         self.player.frames = frames
+        # The second cook is opt-in: without it this scene is exactly the solo
+        # round every measured number in the README was taken on.
+        self.helper = None
+        self.helper_params = None
+        if bool(getattr(app, "coop", False)):
+            body = self.world.spawn_helper()
+            body.set_sheet(frames)
+            self.helper = Helper(body, self.world,
+                                 profile=getattr(app, "helper_profile", "helper"),
+                                 policy=getattr(app, "helper_policy", "backlog"))
+            self.helper_params = self.helper.tuning
         self.elapsed = 0.0
         self.fail_seen = 0
         self.target = None
@@ -169,10 +181,12 @@ class GameScene:
             event = interaction.throw(self.world, player)
             self._seen(event, "")
 
+        self._update_helper(dt, intent)
+
         self.world.update(dt)
         cooking.tick_all(self.world, dt)
         self._ready_chimes()
-        self.camera.center_on((player.foot.centerx, player.foot.bottom - 24))
+        self.camera.center_on(self._focus(player))
         self.world.orders.update(dt, self.elapsed)
         self.guide = (guide.next_step(self.world, player)
                       if diff.assist("guide") else None)
@@ -193,6 +207,49 @@ class GameScene:
             self._finish()
         if self.toast_t > 0:
             self.toast_t -= dt
+
+    # -- the second cook -------------------------------------------------
+    def _update_helper(self, dt, intent):
+        if self.helper is None:
+            return
+        if intent.helper:
+            paused = self.helper.toggle()
+            self._toast("帮厨歇着了（Y 上工）" if paused else "帮厨上工了",
+                        config.color("fog") if paused else config.color("cyan"))
+        # The crosshair is the player's claim: refreshed every frame, dropped the
+        # moment they look away, so the helper can take the oven right after.
+        self.world.tasks.note_player(station=self.target)
+        if (intent.mx or intent.my or intent.interact or intent.throw
+                or intent.pick or intent.skip):
+            self.helper.note_player(self.elapsed)
+        hintent = self.helper.think(self)
+        body = self.helper.actor
+        movement.update_actor(body, hintent, dt, self.world, params=self.helper_params)
+        if hintent.interact:
+            station = interaction.find_target(self.world, body)
+            if station is not None:
+                event, _detail = interaction.interact_with_detail(self.world, body, station)
+                self._helper_sound(event)
+
+    def _helper_sound(self, event):
+        """The helper gets quiet one-shots only: no toasts, no tutorial credit."""
+        if event in ("take", "pickup", "swap"):
+            audio.play("sfx_pickup", 0.35)
+        elif event in ("load", "add", "drop"):
+            audio.play("sfx_place", 0.30)
+        elif event == "chop_done":
+            audio.play(CHOP_STREAM.choice(CHOP_CUES), 0.30)
+        elif event == "served":
+            audio.play("sfx_bell", 0.45)
+
+    def _focus(self, player):
+        """Keep both cooks on screen; the player's cook stays the anchor."""
+        x, y = player.foot.centerx, player.foot.bottom - 24
+        if self.helper is None:
+            return (x, y)
+        body = self.helper.actor
+        return (x * 0.62 + body.foot.centerx * 0.38,
+                y * 0.62 + (body.foot.bottom - 24) * 0.38)
 
     def _station_at_screen(self, pos):
         """Click a machine to use it; the cursor does the walking.
@@ -299,7 +356,8 @@ class GameScene:
 
     def _finish(self):
         from scenes.results import ResultsScene
-        self.app.switch(ResultsScene(self.app, self.world.score, self.level))
+        self.app.switch(ResultsScene(self.app, self.world.score, self.level,
+                                     coop=self.helper is not None))
 
     # -- draw -----------------------------------------------------------
     def draw(self, surface):
@@ -312,6 +370,7 @@ class GameScene:
         render.draw_hand(surface, cam, self.world)
         render.draw_popups(surface, cam, self.world)
 
+        hud.draw_helper_status(surface, self.helper)
         hud.draw_top_bar(surface, self.world, self.elapsed, self.duration)
         hud.draw_tickets(surface, self.world, guide.current_order(self.world))
         hud.draw_target_label(surface, cam, self.world, self.label, self.detail,
@@ -326,6 +385,8 @@ class GameScene:
         hints = HINTS_IDLE
         if self.label:
             hints = [("F", self.label), ("Q", "抛出"), ("Tab", "设置")]
+        if self.helper is not None:
+            hints = list(hints) + [("Y", "歇工" if not self.helper.paused else "上工")]
         hud.draw_hints(surface, hints)
 
         textmod.shadow_text(surface, "%s · 结算 x%.2f" % (diff.data()["name"],

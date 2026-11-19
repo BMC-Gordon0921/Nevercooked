@@ -33,7 +33,7 @@ def rank_of(stars):
 
 
 class ResultsScene:
-    def __init__(self, app, score, level=None):
+    def __init__(self, app, score, level=None, coop=False):
         self.app = app
         self.score = score
         self.level = level or getattr(app, "difficulty", difficulty.DEFAULT)
@@ -42,7 +42,11 @@ class ResultsScene:
         stars = score.final_stars()
         self.stars = stars
         self.coins = score.coins()
-        self.data, self.opened = profile.record(self.level, stars)
+        self.coop = bool(coop)
+        if self.coop:
+            self.data, self.opened = profile.record_coop(), None
+        else:
+            self.data, self.opened = profile.record(self.level, stars)
 
     def update(self, dt, intent):
         self.t += dt
@@ -104,6 +108,10 @@ class ResultsScene:
             textmod.shadow_text(surface, "挑战模式已解锁！同一张桌上再试一次",
                                 (cx, card.bottom - 62), size=15, color=COL_FLAME,
                                 bold=True, anchor="center", shadow=SHADOW)
+        elif self.coop:
+            textmod.shadow_text(surface, "双人局（含 AI 帮厨）不计入最佳成绩与解锁",
+                                (cx, card.bottom - 62), size=15, color=COL_TEAL,
+                                anchor="center", shadow=SHADOW)
         textmod.shadow_text(surface, "Enter 再来一局      Esc 回标题",
                             (cx, card.bottom - 26), size=17, color=COL_SLATE, anchor="center",
                             shadow=SHADOW)
